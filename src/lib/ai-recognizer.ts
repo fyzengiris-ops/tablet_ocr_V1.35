@@ -471,6 +471,7 @@ export function parseCroppedAIResponse(responseText: string): Array<{
   content: string;
   questionType: string;
   optionCount: number | null;
+  blankCount?: number | null;
   answer: string | null;
   analysis: string | null;
   confidence: number;

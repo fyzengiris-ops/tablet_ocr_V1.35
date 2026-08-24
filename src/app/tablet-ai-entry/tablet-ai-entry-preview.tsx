@@ -13,6 +13,7 @@ import {
   Clock3,
   EllipsisVertical,
   FileText,
+  GripVertical,
   Image as ImageIcon,
   Images,
   Layers as LayersIcon,
@@ -50,6 +51,7 @@ type SubjectMode = 'single' | 'multiple';
 type OcrDetectStatus = 'loading' | 'ready' | 'failed';
 type CaptureCloseTarget = 'mode' | 'content' | 'upload' | null;
 type ReviewDisplayMode = 'recognition' | 'image';
+type SelectionOrientation = 'landscape' | 'portrait';
 type JoinPaperMode = 'by_type' | 'by_order';
 type ReviewQuestionType =
   | 'single_choice'
@@ -295,6 +297,14 @@ function isCompoundReviewQuestionType(questionType: ReviewQuestionType, subject 
 
 function canAddReviewSubQuestions(questionType: ReviewQuestionType, subject = '') {
   return isCompoundReviewQuestionType(questionType, subject) || questionType === 'cloze';
+}
+
+function shouldShowReviewSubQuestionAction(questionType: ReviewQuestionType) {
+  return !['short_answer', 'single_choice', 'fill_blank', 'multiple_choice', 'judge'].includes(questionType);
+}
+
+function getDefaultCompoundReviewQuestionType(subject = ''): ReviewQuestionType {
+  return isEnglishSubjectName(subject) ? 'reading_comprehension' : 'solution';
 }
 
 function inferReviewSubQuestionTypeFromContent(content: string): ReviewQuestionType {
@@ -979,13 +989,13 @@ const recognitionModes: {
   {
     id: 'same_image_answer',
     title: '题目+答案',
-    badge: '同图片',
+    badge: '一题一答',
     description: '适用于题目与答案解析紧挨着出现的资料',
   },
   {
     id: 'separate_answer',
     title: '题目+答案',
-    badge: '不同图片',
+    badge: '题答分页',
     description: '适用于题目与答案解析分开拍摄的资料',
   },
 ];
@@ -1027,7 +1037,7 @@ function DiagramTag({
 }
 
 function SourcePageFrame({
-  title = '资料页',
+  title = '《试卷题目文件》',
   children,
   className = '',
 }: {
@@ -1047,61 +1057,10 @@ function SourcePageFrame({
   );
 }
 
-function ResultPreview({ rich }: { rich: boolean }) {
-  if (!rich) {
-    return (
-      <SourcePageFrame title="识别结果">
-        <div className="space-y-[26px] pt-[4px]">
-          {[1, 2, 3].map((index) => (
-            <div key={index}>
-              <div className="mb-[10px] text-[16px] font-medium leading-none text-[#475569]">
-                题{index}
-              </div>
-              <div className="space-y-[9px]">
-                <DiagramLine width="w-full" />
-                <DiagramLine width="w-[74%]" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </SourcePageFrame>
-    );
-  }
-
-  return (
-    <SourcePageFrame title="识别结果">
-      <div className="space-y-[20px] pt-[2px]">
-        <div>
-          <div className="mb-[10px] text-[16px] font-medium leading-none text-[#475569]">题1</div>
-          <div className="space-y-[9px]">
-            <DiagramLine />
-            <DiagramLine width="w-[78%]" />
-            <DiagramLine width="w-[58%]" />
-          </div>
-        </div>
-        <div>
-          <div className="mb-[10px] text-[15px] leading-none text-[#475569]">答案：</div>
-          <div className="space-y-[9px]">
-            <DiagramLine tone="answer" />
-            <DiagramLine tone="answer" width="w-[62%]" />
-          </div>
-        </div>
-        <div>
-          <div className="mb-[10px] text-[15px] leading-none text-[#475569]">解析：</div>
-          <div className="space-y-[9px]">
-            <DiagramLine tone="answer" />
-            <DiagramLine tone="answer" width="w-[68%]" />
-          </div>
-        </div>
-      </div>
-    </SourcePageFrame>
-  );
-}
-
 function QuestionBlock({ label, top }: { label: string; top: number }) {
   return (
     <div
-      className="absolute left-[18px] h-[58px] w-[218px] rounded-[6px] border border-[#68d3c2] bg-[#e8faf5]"
+      className="absolute left-[18px] right-[18px] h-[58px] rounded-[6px] border border-[#68d3c2] bg-[#e8faf5]"
       style={{ top }}
     >
       <div className="absolute -top-[30px] left-0">
@@ -1118,7 +1077,7 @@ function QuestionBlock({ label, top }: { label: string; top: number }) {
 function AdjacentAnswerBlock({ label, top }: { label: string; top: number }) {
   return (
     <div
-      className="absolute left-[18px] h-[66px] w-[258px] rounded-[6px] border border-[#68d3c2] bg-[#e8faf5]"
+      className="absolute left-[18px] right-[18px] h-[66px] rounded-[6px] border border-[#68d3c2] bg-[#e8faf5]"
       style={{ top }}
     >
       <div className="absolute -top-[30px] left-0">
@@ -1152,7 +1111,7 @@ function CompactQuestionBlock({
 
   return (
     <div
-      className={`absolute left-[12px] h-[52px] w-[108px] rounded-[6px] border ${blockClass}`}
+      className={`absolute left-[12px] right-[12px] h-[52px] rounded-[6px] border ${blockClass}`}
       style={{ top }}
     >
       <div className="absolute -top-[26px] left-0">
@@ -1187,32 +1146,30 @@ function CompactFileFrame({
 
 function QuestionOnlyDiagram() {
   return (
-    <div className="grid h-full grid-cols-[1.34fr_0.76fr] gap-[18px]">
+    <div className="h-full">
       <SourcePageFrame>
-        <QuestionBlock label="题1" top={42} />
-        <QuestionBlock label="题2" top={134} />
-        <QuestionBlock label="题3" top={226} />
+        <QuestionBlock label="题1" top={14} />
+        <QuestionBlock label="题2" top={106} />
+        <QuestionBlock label="题3" top={198} />
       </SourcePageFrame>
-      <ResultPreview rich={false} />
     </div>
   );
 }
 
 function SameFileDiagram() {
   return (
-    <div className="grid h-full grid-cols-[1.34fr_0.76fr] gap-[18px]">
+    <div className="h-full">
       <SourcePageFrame>
-        <AdjacentAnswerBlock label="题1+答案/解析" top={42} />
-        <AdjacentAnswerBlock label="题2+答案/解析" top={190} />
+        <AdjacentAnswerBlock label="题1+答案/解析" top={14} />
+        <AdjacentAnswerBlock label="题2+答案/解析" top={162} />
       </SourcePageFrame>
-      <ResultPreview rich />
     </div>
   );
 }
 
 function SeparateFileDiagram() {
   return (
-    <div className="grid h-full grid-cols-[0.9fr_0.9fr_1.08fr] gap-[14px]">
+    <div className="grid h-full grid-cols-2 gap-[18px]">
       <CompactFileFrame title="《试卷题目文件》">
         {[1, 2, 3].map((index, itemIndex) => (
           <CompactQuestionBlock key={index} label={`题${index}`} top={72 + itemIndex * 86} />
@@ -1228,7 +1185,6 @@ function SeparateFileDiagram() {
           />
         ))}
       </CompactFileFrame>
-      <ResultPreview rich />
     </div>
   );
 }
@@ -1686,6 +1642,7 @@ function CaptureImageManager({
   onClose,
   onDelete,
   onMove,
+  onQuestionReorder,
   questionImages,
   selectedImages,
 }: {
@@ -1694,22 +1651,141 @@ function CaptureImageManager({
   onClose: () => void;
   onDelete: (image: SelectedImage, role?: ImageRole) => void;
   onMove: (image: SelectedImage, fromRole: ImageRole, toRole: ImageRole) => void;
+  onQuestionReorder: (fromUrl: string, toUrl: string) => void;
   questionImages: SelectedImage[];
   selectedImages: SelectedImage[];
 }) {
   const isSeparateMode = mode === 'separate_answer';
-  const renderImageItem = (image: SelectedImage, role?: ImageRole) => (
+  const [previewImage, setPreviewImage] = useState<SelectedImage | null>(null);
+  const [draggingQuestionUrl, setDraggingQuestionUrl] = useState<string | null>(null);
+  const [dragOverQuestionUrl, setDragOverQuestionUrl] = useState<string | null>(null);
+  const draggingQuestionUrlRef = useRef<string | null>(null);
+  const lastQuestionReorderTargetUrlRef = useRef<string | null>(null);
+
+  const findQuestionDragTargetUrl = (clientX: number, clientY: number) => {
+    const directTarget = document
+      .elementFromPoint(clientX, clientY)
+      ?.closest<HTMLElement>('[data-question-image-url]');
+
+    if (directTarget?.dataset.questionImageUrl) return directTarget.dataset.questionImageUrl;
+
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-question-image-url]'));
+    if (rows.length === 0) return undefined;
+
+    return rows.reduce(
+      (closest, row) => {
+        const rect = row.getBoundingClientRect();
+        const distance = Math.abs(clientY - (rect.top + rect.height / 2));
+        return distance < closest.distance
+          ? { distance, url: row.dataset.questionImageUrl }
+          : closest;
+      },
+      { distance: Number.POSITIVE_INFINITY, url: undefined as string | undefined },
+    ).url;
+  };
+
+  const handleQuestionDragStart = (url: string, event: ReactPointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    draggingQuestionUrlRef.current = url;
+    lastQuestionReorderTargetUrlRef.current = url;
+    setDraggingQuestionUrl(url);
+    setDragOverQuestionUrl(url);
+  };
+
+  const handleQuestionDragEnd = () => {
+    draggingQuestionUrlRef.current = null;
+    lastQuestionReorderTargetUrlRef.current = null;
+    setDraggingQuestionUrl(null);
+    setDragOverQuestionUrl(null);
+  };
+
+  useEffect(() => {
+    if (!draggingQuestionUrl) return undefined;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      event.preventDefault();
+      const fromUrl = draggingQuestionUrlRef.current;
+      if (!fromUrl) return;
+
+      const targetUrl = findQuestionDragTargetUrl(event.clientX, event.clientY);
+      if (!targetUrl || targetUrl === fromUrl) return;
+      if (targetUrl === lastQuestionReorderTargetUrlRef.current) return;
+
+      lastQuestionReorderTargetUrlRef.current = targetUrl;
+      setDragOverQuestionUrl(targetUrl);
+      onQuestionReorder(fromUrl, targetUrl);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handleQuestionDragEnd);
+    window.addEventListener('pointercancel', handleQuestionDragEnd);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handleQuestionDragEnd);
+      window.removeEventListener('pointercancel', handleQuestionDragEnd);
+    };
+  }, [draggingQuestionUrl, onQuestionReorder]);
+
+  const renderImageItem = (image: SelectedImage, index: number, role?: ImageRole) => (
     <div
       key={image.url}
-      className="flex h-[116px] items-center gap-[16px] rounded-[12px] border border-[#e6e9ed] bg-white p-[12px]"
+      className={`flex h-[116px] touch-none items-center gap-[16px] rounded-[12px] border bg-white p-[12px] ${
+        draggingQuestionUrl === image.url
+          ? 'border-[#58cf9a] shadow-[0_8px_22px_rgba(88,207,154,0.22)]'
+          : dragOverQuestionUrl === image.url
+            ? 'border-[#b6ead9]'
+            : 'border-[#e6e9ed]'
+      }`}
+      data-question-image-url={role === 'question' ? image.url : undefined}
+      onPointerCancel={handleQuestionDragEnd}
+      onPointerDown={(event) => {
+        if (role !== 'question') return;
+        if ((event.target as HTMLElement).closest('button')) return;
+        handleQuestionDragStart(image.url, event);
+      }}
+      onPointerUp={handleQuestionDragEnd}
     >
-      <img
-        alt=""
-        className="h-[88px] w-[88px] rounded-[8px] object-cover"
-        src={image.url}
-      />
-      <div className="min-w-0 flex-1" />
+      <button
+        aria-label="查看大图"
+        className="h-[88px] w-[88px] shrink-0 rounded-[8px] active:scale-[0.98]"
+        onClick={() => setPreviewImage(image)}
+        type="button"
+      >
+        <img
+          alt=""
+          className="h-full w-full rounded-[8px] object-cover"
+          src={image.url}
+        />
+      </button>
+      <div
+        className="min-w-0 flex-1"
+        onPointerDown={(event) => {
+          if (role === 'question') handleQuestionDragStart(image.url, event);
+        }}
+      >
+        <div className="truncate text-[22px] font-medium leading-none text-[#202124]">
+          {role === 'question' ? `题目图片 ${index + 1}` : role === 'answer' ? `答案图片 ${index + 1}` : `图片 ${index + 1}`}
+        </div>
+        <div className="mt-[10px] truncate text-[17px] leading-none text-[#7a838d]">
+          {role === 'question' ? '按住拖动可调整顺序' : '点击缩略图查看大图'}
+        </div>
+      </div>
       <div className="flex shrink-0 items-center gap-[10px]">
+        {role === 'question' ? (
+          <button
+            aria-label="拖动调整题目图片顺序"
+            className="flex h-[42px] items-center gap-[6px] rounded-[7px] border border-[#d7dde3] bg-white px-[12px] text-[18px] leading-none text-[#4b5563] active:bg-[#f4f6f7]"
+            onPointerDown={(event) => handleQuestionDragStart(image.url, event)}
+            onPointerUp={handleQuestionDragEnd}
+            onPointerCancel={handleQuestionDragEnd}
+            type="button"
+          >
+            <GripVertical className="h-[22px] w-[22px]" />
+            排序
+          </button>
+        ) : null}
         {isSeparateMode && role ? (
           <button
             className="h-[42px] rounded-[7px] border border-[#d7dde3] bg-white px-[14px] text-[18px] leading-none text-[#4b5563] active:bg-[#f4f6f7]"
@@ -1737,7 +1813,7 @@ function CaptureImageManager({
       </div>
       <div className="grid gap-[12px]">
         {images.length > 0 ? (
-          images.map((image) => renderImageItem(image, role))
+          images.map((image, index) => renderImageItem(image, index, role))
         ) : (
           <div className="flex h-[104px] items-center justify-center rounded-[12px] border border-dashed border-[#d7dde3] bg-[#f7f8f9] text-[21px] text-[#8b949e]">
             暂未添加图片
@@ -1776,6 +1852,25 @@ function CaptureImageManager({
           </div>
         </div>
       </div>
+      {previewImage ? (
+        <div className="absolute inset-0 z-50 bg-black/78">
+          <button
+            aria-label="关闭大图"
+            className="absolute right-[36px] top-[34px] flex h-[54px] w-[54px] items-center justify-center rounded-full bg-black/65 text-white active:bg-black"
+            onClick={() => setPreviewImage(null)}
+            type="button"
+          >
+            <X className="h-[34px] w-[34px]" />
+          </button>
+          <div className="absolute bottom-[72px] left-[72px] right-[72px] top-[104px] flex items-center justify-center">
+            <img
+              alt=""
+              className="max-h-full max-w-full rounded-[12px] object-contain shadow-[0_20px_70px_rgba(0,0,0,0.38)]"
+              src={previewImage.url}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1798,6 +1893,7 @@ function CaptureSimulator({
   onDeleteImage,
   onMoveImage,
   onPrimary,
+  onQuestionReorder,
   onRoleChange,
 }: {
   title: string;
@@ -1817,6 +1913,7 @@ function CaptureSimulator({
   onDeleteImage: (image: SelectedImage, role?: ImageRole) => void;
   onMoveImage: (image: SelectedImage, fromRole: ImageRole, toRole: ImageRole) => void;
   onPrimary: () => void;
+  onQuestionReorder: (fromUrl: string, toUrl: string) => void;
   onRoleChange?: (role: ImageRole) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1833,6 +1930,11 @@ function CaptureSimulator({
     ? questionImages.length + answerImages.length
     : selectedImages.length;
   const captureFrame = { height: 690, left: 360, top: 210, width: 930 };
+  const captureTitleToneClass = currentRole
+    ? currentRole === 'question'
+      ? 'bg-[#58cf9a] text-white'
+      : 'bg-[#6f94f7] text-white'
+    : 'bg-black/40 text-white/90';
 
   useEffect(() => {
     if (!captureBoxDrag) return undefined;
@@ -1937,7 +2039,7 @@ function CaptureSimulator({
             />
           </div>
         ) : null}
-        <div className="absolute left-1/2 top-[536px] -translate-x-1/2 rounded-[12px] bg-black/40 px-[34px] py-[17px] text-[28px] font-medium leading-none text-white/90">
+        <div className={`absolute left-1/2 top-[536px] -translate-x-1/2 rounded-[12px] px-[34px] py-[17px] text-[28px] font-medium leading-none ${captureTitleToneClass}`}>
           {currentRole
             ? `拍摄${currentRole === 'question' ? '题目' : '答案'}`
             : title}
@@ -2046,6 +2148,7 @@ function CaptureSimulator({
           onClose={() => setIsManagerOpen(false)}
           onDelete={onDeleteImage}
           onMove={onMoveImage}
+          onQuestionReorder={onQuestionReorder}
           questionImages={questionImages}
           selectedImages={selectedImages}
         />
@@ -3511,6 +3614,101 @@ function TabletOcrQuestionReviewPage({
     });
   };
 
+  const renderFillBlankStemDisplay = (content: string | undefined) => {
+    const value = content || '';
+    const tokens = getInlineBlankTokens(value);
+
+    if (tokens.length === 0) {
+      return value || '题干';
+    }
+
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+
+    tokens.forEach((token, index) => {
+      if (token.start > cursor) {
+        parts.push(value.slice(cursor, token.start));
+      }
+      parts.push(
+        <span key={`blank-${token.start}-${index}`} className="relative mx-[6px] inline-block h-[30px] w-[62px] translate-y-[7px] align-baseline text-[#16a69a]">
+          <span className="absolute left-1/2 top-0 flex h-[22px] min-w-[22px] -translate-x-1/2 items-center justify-center rounded-full border border-[#16a69a] px-[4px] text-[16px] font-medium leading-none">
+            {index + 1}
+          </span>
+          <span className="absolute bottom-[4px] left-0 h-[2px] w-full rounded-full bg-[#16a69a]" />
+        </span>,
+      );
+      cursor = token.end;
+    });
+
+    if (cursor < value.length) {
+      parts.push(value.slice(cursor));
+    }
+
+    return parts;
+  };
+
+  const renderFillBlankStemPreview = (content: string | undefined) => (
+    <div className="min-h-[64px] w-full whitespace-pre-wrap rounded-[6px] border border-[#d7dde3] bg-white px-[16px] py-[12px] text-[20px] leading-[1.55] text-[#2f363d]">
+      {renderFillBlankStemDisplay(content)}
+    </div>
+  );
+
+  const renderFillBlankStemEditor = (
+    value: string,
+    onChange: (value: string) => void,
+    isProcessing: boolean,
+    loadingLabel: string,
+    options: {
+      editorId: string;
+      readOnly?: boolean;
+      onBlankInsert?: (nextValue: string, insertStart: number) => void;
+    },
+  ) => {
+    if (isProcessing) return renderFieldLoading(loadingLabel);
+    if (options.readOnly) return renderFillBlankStemPreview(value);
+
+    const showToolbar = focusedStemEditorId === options.editorId;
+
+    return (
+      <div>
+        {showToolbar ? (
+          <div className="mb-[7px] inline-flex h-[38px] items-center gap-[3px] rounded-[7px] border border-[#d9dee3] bg-[#f1f3f4] px-[6px] text-[17px] text-[#5c646d] shadow-[0_6px_16px_rgba(31,44,58,0.08)]" onClick={(event) => event.stopPropagation()}>
+            <button className="flex h-[28px] w-[28px] items-center justify-center rounded-[5px] font-semibold active:bg-white" type="button">B</button>
+            <button className="flex h-[28px] w-[28px] items-center justify-center rounded-[5px] italic active:bg-white" type="button">I</button>
+            <button className="flex h-[28px] w-[28px] items-center justify-center rounded-[5px] underline active:bg-white" type="button">U</button>
+            <div className="mx-[4px] h-[22px] w-px bg-[#d0d6dc]" />
+            <button
+              aria-label="挖空"
+              className="flex h-[28px] w-[32px] items-center justify-center rounded-[5px] active:bg-white"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => insertBlankIntoStemEditor(options.editorId, value, onChange, options.onBlankInsert)}
+              type="button"
+            >
+              <span className="h-[11px] w-[20px] rounded-b-[3px] border-b-[3px] border-l-[3px] border-r-[3px] border-[#59616a]" />
+            </button>
+          </div>
+        ) : null}
+        <div className="relative">
+          <div className="pointer-events-none min-h-[64px] w-full whitespace-pre-wrap rounded-[6px] border border-[#d7dde3] bg-white px-[16px] py-[12px] text-[20px] leading-[1.55] text-[#2f363d]">
+            {renderFillBlankStemDisplay(value)}
+          </div>
+          <AutoResizeTextarea
+            aria-label="题干"
+            className="absolute inset-0 min-h-[64px] w-full resize-none overflow-hidden rounded-[6px] border border-transparent bg-transparent px-[16px] py-[12px] text-[20px] leading-[1.55] text-transparent caret-[#16a69a] outline-none focus:border-[#23bfb2]"
+            id={options.editorId}
+            onBlur={() => window.setTimeout(() => {
+              setFocusedStemEditorId((currentId) => (currentId === options.editorId ? null : currentId));
+            }, 120)}
+            onChange={onChange}
+            onClick={(event) => event.stopPropagation()}
+            onFocus={() => setFocusedStemEditorId(options.editorId)}
+            value={value}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const isManualLinkTargetActive = (target: TabletManualLinkTarget) => (
     manualLinkTarget?.questionId === target.questionId &&
     manualLinkTarget.field === target.field &&
@@ -3695,6 +3893,9 @@ function TabletOcrQuestionReviewPage({
 
   const insertRecognitionSubQuestion = (questionId: string, afterIndex: number, questionType: ReviewQuestionType) => {
     updateQuestion(questionId, (currentQuestion) => {
+      const parentQuestionType = canAddReviewSubQuestions(currentQuestion.questionType, subject)
+        ? currentQuestion.questionType
+        : getDefaultCompoundReviewQuestionType(subject);
       const nextSubQuestions = [...currentQuestion.subQuestions];
       const insertIndex = Math.min(Math.max(afterIndex + 1, 0), nextSubQuestions.length);
       nextSubQuestions.splice(insertIndex, 0, createReviewSubQuestion(currentQuestion.id, insertIndex, questionType, {
@@ -3703,7 +3904,17 @@ function TabletOcrQuestionReviewPage({
       }));
       return {
         ...currentQuestion,
-        blankCount: currentQuestion.questionType === 'cloze' ? nextSubQuestions.length : currentQuestion.blankCount,
+        blankCount: parentQuestionType === 'cloze' ? nextSubQuestions.length : currentQuestion.blankCount,
+        optionContents: isChoiceLikeQuestionType(parentQuestionType)
+          ? buildOptionContents(parentQuestionType, getDefaultOptionCount(parentQuestionType, currentQuestion.optionCount), currentQuestion.optionContents || {})
+          : {},
+        optionCount: parentQuestionType === 'cloze' || parentQuestionType === 'reading_comprehension'
+          ? Math.max(4, currentQuestion.optionCount)
+          : isChoiceLikeQuestionType(parentQuestionType)
+            ? getDefaultOptionCount(parentQuestionType, currentQuestion.optionCount)
+            : currentQuestion.optionCount,
+        questionType: parentQuestionType,
+        questionTypeStatus: parentQuestionType === currentQuestion.questionType ? currentQuestion.questionTypeStatus : 'manual',
         subQuestions: nextSubQuestions,
       };
     });
@@ -4227,6 +4438,93 @@ function TabletOcrQuestionReviewPage({
     );
   };
 
+  const renderFieldLinkBadge = (
+    text: '题' | '选' | '答' | '析',
+    target: TabletManualLinkTarget,
+    label: string,
+    options: { warning?: boolean; warningTone?: 'strong' | 'muted' } = {},
+  ) => {
+    const isActive = isManualLinkTargetActive(target);
+    const isProcessing = isManualLinkTargetProcessing(target);
+    const warning = !!options.warning;
+    const warningTone = options.warningTone || 'strong';
+
+    return (
+      <button
+        aria-label={label}
+        className={`relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[8px] border pb-[2px] pl-[7px] text-[18px] font-medium leading-none transition-colors ${
+          isActive
+            ? 'border-[#f28b21] bg-[#fff3e0] text-[#f28b21]'
+            : warning
+              ? 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
+              : 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
+        } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
+        disabled={isProcessing}
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleManualLinkTarget(target);
+        }}
+        type="button"
+      >
+        <span className={warning ? (warningTone === 'muted' ? 'text-[#8f99a3]' : 'text-[#f28b21]') : ''}>
+          {text}
+          {warning ? <span className="ml-[1px]">!</span> : null}
+        </span>
+        <span className={`absolute left-0 top-0 h-[23px] w-[23px] rounded-tl-[7px] [clip-path:polygon(0_0,100%_0,0_100%)] ${
+          isActive ? 'bg-[#ffe5bf]' : 'bg-[#edf1f4]'
+        }`}>
+          <Link2 className={`absolute left-[2px] top-[2px] h-[12px] w-[12px] rotate-[135deg] stroke-[2] ${
+            isActive ? 'text-[#f28b21]' : 'text-[#6f7a85]'
+          }`} />
+        </span>
+      </button>
+    );
+  };
+
+  const renderLinkedFieldRow = (
+    text: '题' | '选' | '答' | '析',
+    target: TabletManualLinkTarget,
+    label: string,
+    children: React.ReactNode,
+    options: { warning?: boolean; warningTone?: 'strong' | 'muted' } = {},
+  ) => (
+    <div className="flex items-start gap-[12px]">
+      {renderFieldLinkBadge(text, target, label, options)}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+
+  const renderOptionLinkPill = (target: TabletManualLinkTarget) => {
+    const isActive = isManualLinkTargetActive(target);
+    const isProcessing = isManualLinkTargetProcessing(target);
+
+    return (
+      <button
+        aria-label="关联选项区域"
+        className={`relative inline-flex h-[38px] items-center rounded-[8px] border pl-[24px] pr-[12px] text-[18px] font-medium leading-none transition-colors ${
+          isActive
+            ? 'border-[#f28b21] bg-[#fff3e0] text-[#f28b21]'
+            : 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
+        } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
+        disabled={isProcessing}
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleManualLinkTarget(target);
+        }}
+        type="button"
+      >
+        <span className={`absolute left-0 top-0 h-[21px] w-[21px] rounded-tl-[7px] [clip-path:polygon(0_0,100%_0,0_100%)] ${
+          isActive ? 'bg-[#ffe5bf]' : 'bg-[#edf1f4]'
+        }`}>
+          <Link2 className={`absolute left-[2px] top-[2px] h-[11px] w-[11px] rotate-[135deg] stroke-[2] ${
+            isActive ? 'text-[#f28b21]' : 'text-[#6f7a85]'
+          }`} />
+        </span>
+        选项
+      </button>
+    );
+  };
+
   const renderFieldLoading = (label: string) => (
     <div className="flex min-h-[54px] items-center gap-[10px] rounded-[6px] border border-[#b7ded9] bg-[#effcfb] px-[14px] text-[18px] font-medium leading-none text-[#16a69a]">
       <div className="h-[22px] w-[22px] animate-spin rounded-full border-[3px] border-[#cfe5e2] border-t-[#23bfb2]" />
@@ -4309,10 +4607,6 @@ function TabletOcrQuestionReviewPage({
 
     return (
       <div className="space-y-[12px]">
-        <div className="flex items-center gap-[6px] text-[18px] leading-none text-[#68727d]">
-          <span>选项</span>
-          {renderManualLinkButton(target, '关联选项区域')}
-        </div>
         {OPTION_LETTERS.slice(0, count).split('').map((letter) => (
           <div key={letter} className={options.withOptionAnalysis ? 'rounded-[7px] border border-[#dfe4e8] bg-white p-[12px]' : ''}>
             <label className="flex items-center gap-[12px]">
@@ -4388,6 +4682,7 @@ function TabletOcrQuestionReviewPage({
   const renderRecognitionAddSubButton = (question: ReviewQuestion, afterIndex: number) => {
     const isFixedSingleChoice = isEnglishSubjectName(subject) && (question.questionType === 'reading_comprehension' || question.questionType === 'cloze');
     const isMenuOpen = recognitionAddSubMenu?.questionId === question.id && recognitionAddSubMenu.afterIndex === afterIndex;
+    const isCompoundQuestion = canAddReviewSubQuestions(question.questionType, subject);
 
     return (
       <div className="relative flex items-center justify-start gap-[14px] pb-[12px] pt-[2px]" onClick={(event) => event.stopPropagation()}>
@@ -4408,7 +4703,9 @@ function TabletOcrQuestionReviewPage({
         <span className="flex h-[24px] w-[24px] items-center justify-center rounded-full bg-[#b7bbc0] text-[18px] font-semibold leading-none text-white">
           !
         </span>
-        <span className="text-[20px] leading-none text-[#8b8f95]">请核对子题信息</span>
+        <span className="text-[20px] leading-none text-[#8b8f95]">
+          {isCompoundQuestion ? '请核对子题信息' : '添加后转为大题结构'}
+        </span>
         {isMenuOpen && !isFixedSingleChoice ? (
           <div className="absolute left-0 top-[52px] z-30 w-[188px] overflow-hidden rounded-[9px] border border-[#dfe4e8] bg-white shadow-[0_14px_32px_rgba(31,44,58,0.18)]">
             {reviewQuestionTypeOptions.map((option) => (
@@ -4501,64 +4798,72 @@ function TabletOcrQuestionReviewPage({
 
         {question.questionType !== 'cloze' ? (
           <div className="mb-[16px]">
-            <div className="mb-[8px] flex items-center gap-[6px] text-[18px] leading-none text-[#68727d]">
-              <span>子题题干</span>
-              {renderManualLinkButton({ questionId: question.id, field: 'content', subQuestionId: subQuestion.id }, '关联子题题干')}
-            </div>
-            {renderRecognitionTextAreaV2(subQuestion.content || '', (value) => {
-              updateQuestion(question.id, (currentQuestion) => ({
-                ...currentQuestion,
-                subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
-                  currentSubQuestion.id === subQuestion.id
-                    ? {
-                        ...currentSubQuestion,
-                        blankAnswers: currentSubQuestion.questionType === 'fill_blank'
-                          ? createBlankAnswers(countInlineBlanks(value), currentSubQuestion.blankAnswers)
-                          : currentSubQuestion.blankAnswers,
-                        blankCount: currentSubQuestion.questionType === 'fill_blank'
-                          ? countInlineBlanks(value)
-                          : currentSubQuestion.blankCount,
-                        content: value,
-                      }
-                    : currentSubQuestion
-                )),
-              }));
-            }, '子题题干', isManualLinkTargetProcessing({ questionId: question.id, field: 'content', subQuestionId: subQuestion.id }), '子题题干识别中...', {
-              editorId: `tablet-stem-${question.id}-${subQuestion.id}`,
-              fillBlankToolbar: subQuestion.questionType === 'fill_blank',
-              readOnly,
-              onBlankInsert: (nextValue, insertStart) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => {
-                    if (currentSubQuestion.id !== subQuestion.id) return currentSubQuestion;
-                    if (currentSubQuestion.questionType !== 'fill_blank') {
-                      return { ...currentSubQuestion, content: nextValue };
-                    }
-                    const nextBlankAnswers = syncBlankAnswersByInsertedToken(
-                      currentSubQuestion.content,
-                      nextValue,
-                      currentSubQuestion.blankAnswers,
-                      insertStart,
-                    );
-                    return {
-                      ...currentSubQuestion,
-                      answer: nextBlankAnswers.filter(Boolean).join('；'),
-                      blankAnswers: nextBlankAnswers,
-                      blankCount: nextBlankAnswers.length,
-                      content: nextValue,
-                    };
+            {renderLinkedFieldRow(
+              '题',
+              { questionId: question.id, field: 'content', subQuestionId: subQuestion.id },
+              '关联子题题干',
+              subQuestion.questionType === 'fill_blank'
+                ? renderFillBlankStemEditor(subQuestion.content || '', (value) => {
+                    updateQuestion(question.id, (currentQuestion) => ({
+                      ...currentQuestion,
+                      subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
+                        currentSubQuestion.id === subQuestion.id
+                          ? {
+                              ...currentSubQuestion,
+                              blankAnswers: createBlankAnswers(countInlineBlanks(value), currentSubQuestion.blankAnswers),
+                              blankCount: countInlineBlanks(value),
+                              content: value,
+                            }
+                          : currentSubQuestion
+                      )),
+                    }));
+                  }, isManualLinkTargetProcessing({ questionId: question.id, field: 'content', subQuestionId: subQuestion.id }), '子题题干识别中...', {
+                    editorId: `tablet-stem-${question.id}-${subQuestion.id}`,
+                    readOnly,
+                    onBlankInsert: (nextValue, insertStart) => {
+                      updateQuestion(question.id, (currentQuestion) => ({
+                        ...currentQuestion,
+                        subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => {
+                          if (currentSubQuestion.id !== subQuestion.id) return currentSubQuestion;
+                          const nextBlankAnswers = syncBlankAnswersByInsertedToken(
+                            currentSubQuestion.content,
+                            nextValue,
+                            currentSubQuestion.blankAnswers,
+                            insertStart,
+                          );
+                          return {
+                            ...currentSubQuestion,
+                            answer: nextBlankAnswers.filter(Boolean).join('；'),
+                            blankAnswers: nextBlankAnswers,
+                            blankCount: nextBlankAnswers.length,
+                            content: nextValue,
+                          };
+                        }),
+                      }));
+                    },
+                  })
+                : renderRecognitionTextAreaV2(subQuestion.content || '', (value) => {
+                    updateQuestion(question.id, (currentQuestion) => ({
+                      ...currentQuestion,
+                      subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
+                        currentSubQuestion.id === subQuestion.id
+                          ? { ...currentSubQuestion, content: value }
+                          : currentSubQuestion
+                      )),
+                    }));
+                  }, '子题题干', isManualLinkTargetProcessing({ questionId: question.id, field: 'content', subQuestionId: subQuestion.id }), '子题题干识别中...', {
+                    editorId: `tablet-stem-${question.id}-${subQuestion.id}`,
+                    readOnly,
                   }),
-                }));
-              },
-            })}
+            )}
           </div>
         ) : null}
 
         {isChoiceLikeQuestionType(subQuestion.questionType) ? (
           <div>
             {subQuestion.questionType !== 'judge' && !isEnglishClozeSubQuestion ? (
-              <div className="mb-[12px]" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-[12px] flex items-center gap-[12px]" onClick={(event) => event.stopPropagation()}>
+                {renderOptionLinkPill({ questionId: question.id, field: 'optionContent', subQuestionId: subQuestion.id })}
                 <CountStepper
                   label="选项数"
                   disabled={readOnly}
@@ -4579,7 +4884,11 @@ function TabletOcrQuestionReviewPage({
                  value={subQuestion.optionCount}
                 />
               </div>
-            ) : null}
+            ) : (
+              <div className="mb-[12px]" onClick={(event) => event.stopPropagation()}>
+                {renderOptionLinkPill({ questionId: question.id, field: 'optionContent', subQuestionId: subQuestion.id })}
+              </div>
+            )}
             {renderRecognitionOptionsV2(
               subQuestion.questionType,
               subQuestion.optionCount,
@@ -4627,10 +4936,7 @@ function TabletOcrQuestionReviewPage({
   };
 
   const renderAnswerLabel = (label: '答案' | '解析', target: TabletManualLinkTarget, isMatched: boolean) => (
-    <div className={`mb-[10px] flex items-center gap-[6px] text-[20px] leading-none ${isMatched ? 'text-[#68727d]' : 'text-[#f28b21]'}`}>
-      <span>{isMatched ? label : `${label}未匹配`}</span>
-      {renderManualLinkButton(target, `关联${label}`)}
-    </div>
+    renderFieldLinkBadge(label === '答案' ? '答' : '析', target, `关联${label}`, { warning: !isMatched })
   );
 
   const renderChoiceAnswerButtons = (
@@ -4740,28 +5046,38 @@ function TabletOcrQuestionReviewPage({
     <div className="mt-[22px] space-y-[18px]">
       {!options.hideAnswer ? (
         <div>
-          {renderAnswerLabel('答案', { questionId: question.id, field: 'answer' }, hasQuestionAnswer(question))}
-          {renderAnswerInput(
-            question,
-            (value) => updateQuestion(question.id, (currentQuestion) => applyAnswerValue(currentQuestion, value)),
-            (index, value) => updateQuestion(question.id, (currentQuestion) => {
-              const nextBlankAnswers = createBlankAnswers(currentQuestion.blankCount, currentQuestion.blankAnswers);
-              nextBlankAnswers[index] = value;
-              return { ...currentQuestion, blankAnswers: nextBlankAnswers, answer: nextBlankAnswers.filter(Boolean).join('；') };
-            }),
-            isManualLinkTargetProcessing({ questionId: question.id, field: 'answer' }),
-            options.readOnly,
+          {renderLinkedFieldRow(
+            '答',
+            { questionId: question.id, field: 'answer' },
+            '关联答案',
+            renderAnswerInput(
+              question,
+              (value) => updateQuestion(question.id, (currentQuestion) => applyAnswerValue(currentQuestion, value)),
+              (index, value) => updateQuestion(question.id, (currentQuestion) => {
+                const nextBlankAnswers = createBlankAnswers(currentQuestion.blankCount, currentQuestion.blankAnswers);
+                nextBlankAnswers[index] = value;
+                return { ...currentQuestion, blankAnswers: nextBlankAnswers, answer: nextBlankAnswers.filter(Boolean).join('；') };
+              }),
+              isManualLinkTargetProcessing({ questionId: question.id, field: 'answer' }),
+              options.readOnly,
+            ),
+            { warning: !hasQuestionAnswer(question) },
           )}
         </div>
       ) : null}
       {!options.hideAnalysis ? (
         <div>
-          {renderAnswerLabel('解析', { questionId: question.id, field: 'analysis' }, isUsableText(question.analysis))}
-          {renderAnalysisInput(
-            question.analysis,
-            (value) => updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, analysis: value })),
-            isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis' }),
-            options.readOnly,
+          {renderLinkedFieldRow(
+            '析',
+            { questionId: question.id, field: 'analysis' },
+            '关联解析',
+            renderAnalysisInput(
+              question.analysis,
+              (value) => updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, analysis: value })),
+              isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis' }),
+              options.readOnly,
+            ),
+            { warning: !isUsableText(question.analysis), warningTone: 'muted' },
           )}
         </div>
       ) : null}
@@ -4816,41 +5132,51 @@ function TabletOcrQuestionReviewPage({
         </div>
       ) : null}
       <div>
-        {renderAnswerLabel('答案', { questionId: question.id, field: 'answer', subQuestionId: subQuestion.id }, hasQuestionAnswer(subQuestion))}
-        {renderAnswerInput(
-          subQuestion,
-          (value) => updateQuestion(question.id, (currentQuestion) => ({
-            ...currentQuestion,
-            subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
-              currentSubQuestion.id === subQuestion.id ? applyAnswerValue(currentSubQuestion, value) : currentSubQuestion
-            )),
-          })),
-          (index, value) => updateQuestion(question.id, (currentQuestion) => ({
-            ...currentQuestion,
-            subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => {
-              if (currentSubQuestion.id !== subQuestion.id) return currentSubQuestion;
-              const nextBlankAnswers = createBlankAnswers(currentSubQuestion.blankCount, currentSubQuestion.blankAnswers);
-              nextBlankAnswers[index] = value;
-              return { ...currentSubQuestion, blankAnswers: nextBlankAnswers, answer: nextBlankAnswers.filter(Boolean).join('；') };
-            }),
-          })),
-          isManualLinkTargetProcessing({ questionId: question.id, field: 'answer', subQuestionId: subQuestion.id }),
-          options.readOnly,
+        {renderLinkedFieldRow(
+          '答',
+          { questionId: question.id, field: 'answer', subQuestionId: subQuestion.id },
+          '关联答案',
+          renderAnswerInput(
+            subQuestion,
+            (value) => updateQuestion(question.id, (currentQuestion) => ({
+              ...currentQuestion,
+              subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
+                currentSubQuestion.id === subQuestion.id ? applyAnswerValue(currentSubQuestion, value) : currentSubQuestion
+              )),
+            })),
+            (index, value) => updateQuestion(question.id, (currentQuestion) => ({
+              ...currentQuestion,
+              subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => {
+                if (currentSubQuestion.id !== subQuestion.id) return currentSubQuestion;
+                const nextBlankAnswers = createBlankAnswers(currentSubQuestion.blankCount, currentSubQuestion.blankAnswers);
+                nextBlankAnswers[index] = value;
+                return { ...currentSubQuestion, blankAnswers: nextBlankAnswers, answer: nextBlankAnswers.filter(Boolean).join('；') };
+              }),
+            })),
+            isManualLinkTargetProcessing({ questionId: question.id, field: 'answer', subQuestionId: subQuestion.id }),
+            options.readOnly,
+          ),
+          { warning: !hasQuestionAnswer(subQuestion) },
         )}
       </div>
       {!options.hideAnalysis ? (
         <div>
-          {renderAnswerLabel('解析', { questionId: question.id, field: 'analysis', subQuestionId: subQuestion.id }, isUsableText(subQuestion.analysis))}
-          {renderAnalysisInput(
-            subQuestion.analysis,
-            (value) => updateQuestion(question.id, (currentQuestion) => ({
-              ...currentQuestion,
-              subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
-                currentSubQuestion.id === subQuestion.id ? { ...currentSubQuestion, analysis: value } : currentSubQuestion
-              )),
-            })),
-            isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis', subQuestionId: subQuestion.id }),
-            options.readOnly,
+          {renderLinkedFieldRow(
+            '析',
+            { questionId: question.id, field: 'analysis', subQuestionId: subQuestion.id },
+            '关联解析',
+            renderAnalysisInput(
+              subQuestion.analysis,
+              (value) => updateQuestion(question.id, (currentQuestion) => ({
+                ...currentQuestion,
+                subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
+                  currentSubQuestion.id === subQuestion.id ? { ...currentSubQuestion, analysis: value } : currentSubQuestion
+                )),
+              })),
+              isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis', subQuestionId: subQuestion.id }),
+              options.readOnly,
+            ),
+            { warning: !isUsableText(subQuestion.analysis), warningTone: 'muted' },
           )}
         </div>
       ) : null}
@@ -4971,56 +5297,61 @@ function TabletOcrQuestionReviewPage({
     const isEnglishSubject = isEnglishSubjectName(subject);
     const isCloze = isEnglishSubject && question.questionType === 'cloze';
     const isCompound = canAddReviewSubQuestions(question.questionType, subject);
+    const showSubQuestionAction = shouldShowReviewSubQuestionAction(question.questionType);
 
     return (
       <div className="space-y-[18px] rounded-[8px] border border-[#e0e5e9] bg-white p-[18px]">
         <div>
-          <div className="mb-[8px] flex items-center gap-[6px] text-[18px] leading-none text-[#68727d]">
-            <span>题干</span>
-            {renderManualLinkButton({ questionId: question.id, field: 'content' }, '关联父题题干')}
-          </div>
-          {renderRecognitionTextAreaV2(question.content || '', (value) => {
-            updateQuestion(question.id, (currentQuestion) => ({
-              ...currentQuestion,
-              blankAnswers: currentQuestion.questionType === 'fill_blank'
-                ? createBlankAnswers(countInlineBlanks(value), currentQuestion.blankAnswers)
-                : currentQuestion.blankAnswers,
-              blankCount: currentQuestion.questionType === 'fill_blank'
-                ? countInlineBlanks(value)
-                : currentQuestion.blankCount,
-              content: value,
-            }));
-          }, '题干', isManualLinkTargetProcessing({ questionId: question.id, field: 'content' }), '题干识别中...', {
-            editorId: `tablet-stem-${question.id}`,
-            fillBlankToolbar: question.questionType === 'fill_blank',
-            readOnly,
-            onBlankInsert: (nextValue, insertStart) => {
-              updateQuestion(question.id, (currentQuestion) => {
-                if (currentQuestion.questionType !== 'fill_blank') {
-                  return { ...currentQuestion, content: nextValue };
-                }
-                const nextBlankAnswers = syncBlankAnswersByInsertedToken(
-                  currentQuestion.content,
-                  nextValue,
-                  currentQuestion.blankAnswers,
-                  insertStart,
-                );
-                return {
-                  ...currentQuestion,
-                  answer: nextBlankAnswers.filter(Boolean).join('；'),
-                  blankAnswers: nextBlankAnswers,
-                  blankCount: nextBlankAnswers.length,
-                  content: nextValue,
-                };
-              });
-            },
-          })}
+          {renderLinkedFieldRow(
+            '题',
+            { questionId: question.id, field: 'content' },
+            '关联父题题干',
+            question.questionType === 'fill_blank'
+              ? renderFillBlankStemEditor(question.content || '', (value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({
+                    ...currentQuestion,
+                    blankAnswers: createBlankAnswers(countInlineBlanks(value), currentQuestion.blankAnswers),
+                    blankCount: countInlineBlanks(value),
+                    content: value,
+                  }));
+                }, isManualLinkTargetProcessing({ questionId: question.id, field: 'content' }), '题干识别中...', {
+                  editorId: `tablet-stem-${question.id}`,
+                  readOnly,
+                  onBlankInsert: (nextValue, insertStart) => {
+                    updateQuestion(question.id, (currentQuestion) => {
+                      const nextBlankAnswers = syncBlankAnswersByInsertedToken(
+                        currentQuestion.content,
+                        nextValue,
+                        currentQuestion.blankAnswers,
+                        insertStart,
+                      );
+                      return {
+                        ...currentQuestion,
+                        answer: nextBlankAnswers.filter(Boolean).join('；'),
+                        blankAnswers: nextBlankAnswers,
+                        blankCount: nextBlankAnswers.length,
+                        content: nextValue,
+                      };
+                    });
+                  },
+                })
+              : renderRecognitionTextAreaV2(question.content || '', (value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({
+                    ...currentQuestion,
+                    content: value,
+                  }));
+                }, '题干', isManualLinkTargetProcessing({ questionId: question.id, field: 'content' }), '题干识别中...', {
+                  editorId: `tablet-stem-${question.id}`,
+                  readOnly,
+                }),
+          )}
         </div>
 
         {isChoiceLikeQuestionType(question.questionType) ? (
           <div>
             {question.questionType !== 'judge' ? (
-              <div className="mb-[12px]" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-[12px] flex items-center gap-[12px]" onClick={(event) => event.stopPropagation()}>
+                {renderOptionLinkPill({ questionId: question.id, field: 'optionContent' })}
                 <CountStepper
                   disabled={readOnly}
                   label="选项数"
@@ -5034,7 +5365,11 @@ function TabletOcrQuestionReviewPage({
                   value={question.optionCount}
                 />
               </div>
-            ) : null}
+            ) : (
+              <div className="mb-[12px]" onClick={(event) => event.stopPropagation()}>
+                {renderOptionLinkPill({ questionId: question.id, field: 'optionContent' })}
+              </div>
+            )}
             {renderRecognitionOptionsV2(
               question.questionType,
               question.optionCount,
@@ -5094,9 +5429,9 @@ function TabletOcrQuestionReviewPage({
           </div>
         ) : null}
 
-        {isCompound ? (
+        {isCompound || showSubQuestionAction ? (
           <div className="space-y-[4px]">
-            {question.questionType !== 'cloze' && !readOnly ? renderRecognitionAddSubButton(question, question.subQuestions.length - 1) : null}
+            {question.questionType !== 'cloze' && showSubQuestionAction ? renderRecognitionAddSubButton(question, question.subQuestions.length - 1) : null}
             {question.subQuestions.map((subQuestion, index) => (
               <div key={subQuestion.id}>
                 {renderRecognitionSubQuestion(question, subQuestion, index, readOnly)}
@@ -5335,7 +5670,7 @@ function TabletOcrQuestionReviewPage({
 
           {question.viewMode === 'image' ? (
           <div className="mt-[18px]">
-            {isQuestionEditing ? (
+            {shouldShowReviewSubQuestionAction(question.questionType) ? (
             <AnswerConfigPanel
               answerMode={shouldShowAnswerAnalysis}
               onAddSubQuestion={(questionType) => {
@@ -5985,6 +6320,7 @@ function TabletOcrContentSelectionPage({
   const [isAddBoxMode, setIsAddBoxMode] = useState(false);
   const [hasSeenAddBoxModeTip, setHasSeenAddBoxModeTip] = useState(false);
   const [showAddBoxModeTip, setShowAddBoxModeTip] = useState(false);
+  const [selectionOrientation, setSelectionOrientation] = useState<SelectionOrientation>('landscape');
   const imageWrapRef = useRef<HTMLDivElement>(null);
   const pageWrapRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const hasMovedBoxRef = useRef(false);
@@ -6190,6 +6526,19 @@ function TabletOcrContentSelectionPage({
   const selectedCount = boxes.filter((box) => box.selected).length;
   const isAllBoxesSelected = boxes.length > 0 && selectedCount === boxes.length;
   const isSomeBoxesSelected = selectedCount > 0 && !isAllBoxesSelected;
+  const isPortraitSelection = selectionOrientation === 'portrait';
+
+  const getSelectionMaterialPageFrameSize = (page: MaterialPage) => {
+    const scale = Math.min(
+      (isPortraitSelection ? 920 : 1320) / page.naturalWidth,
+      (isPortraitSelection ? 1420 : 900) / page.naturalHeight,
+    );
+
+    return {
+      width: page.naturalWidth * scale,
+      height: page.naturalHeight * scale,
+    };
+  };
 
   const addManualBox = (targetPage = activePage?.role === 'answer' ? questionPages[0] : activePage) => {
     if (!targetPage) return;
@@ -6364,7 +6713,7 @@ function TabletOcrContentSelectionPage({
   }
 
   const renderMaterialPage = (page: MaterialPage, variant: 'question' | 'answer') => {
-    const frame = getMaterialPageFrameSize(page);
+    const frame = getSelectionMaterialPageFrameSize(page);
     const pageBoxes = boxes.filter((box) => box.pageNumber === page.pageNumber);
     const isQuestionPage = variant === 'question';
     const isFirstQuestionPage = questionPages[0]?.pageNumber === page.pageNumber;
@@ -6497,7 +6846,7 @@ function TabletOcrContentSelectionPage({
   };
 
   const renderSeparateModeMaterials = () => (
-    <div className="absolute inset-0 overflow-y-auto px-[28px] py-[24px]">
+    <div className={`absolute inset-0 overflow-y-auto ${isPortraitSelection ? 'px-[24px] py-[22px]' : 'px-[42px] py-[28px]'}`}>
       <section>
         <div className="mb-[18px] flex items-center gap-[14px]">
           <span className="rounded-[6px] bg-[#e7f7ff] px-[16px] py-[8px] text-[21px] font-semibold leading-none text-[#268fe8]">
@@ -6527,7 +6876,7 @@ function TabletOcrContentSelectionPage({
   );
 
   const renderUnifiedModeMaterials = () => (
-    <div className="absolute inset-0 overflow-y-auto px-[28px] py-[24px]">
+    <div className={`absolute inset-0 overflow-y-auto ${isPortraitSelection ? 'px-[24px] py-[22px]' : 'px-[42px] py-[28px]'}`}>
       {materialPages.map((page) => renderMaterialPage(page, 'question'))}
     </div>
   );
@@ -6552,8 +6901,8 @@ function TabletOcrContentSelectionPage({
         </div>
       </header>
 
-      <div className="absolute left-0 top-[88px] h-[76px] w-full border-b border-[#e2e7eb] bg-white">
-        <div className="absolute left-[34px] top-[15px] flex items-center gap-[14px]">
+      <div className="absolute left-0 top-[88px] flex h-[76px] w-full items-center justify-between gap-[18px] border-b border-[#e2e7eb] bg-white px-[34px]">
+        <div className="flex min-w-0 items-center gap-[14px]">
           <button className="h-[46px] rounded-[8px] border border-[#d7dde3] bg-white px-[20px] text-[20px] text-[#3f4852] active:bg-[#f4f6f7]" onClick={handleReplaceClick} type="button">
             更换资料
           </button>
@@ -6580,7 +6929,29 @@ function TabletOcrContentSelectionPage({
             清空
           </button>
         </div>
-        <div className="absolute left-[690px] top-[15px] flex h-[46px] items-center gap-[16px]">
+        <div className="flex h-[46px] shrink-0 items-center gap-[16px]">
+          <div className="flex h-[42px] rounded-[8px] bg-[#eef1f3] p-[4px]">
+            <button
+              aria-pressed={!isPortraitSelection}
+              className={`h-[34px] rounded-[6px] px-[14px] text-[18px] font-medium leading-none ${
+                !isPortraitSelection ? 'bg-white text-[#202124] shadow-sm' : 'text-[#68727d]'
+              }`}
+              onClick={() => setSelectionOrientation('landscape')}
+              type="button"
+            >
+              横屏
+            </button>
+            <button
+              aria-pressed={isPortraitSelection}
+              className={`h-[34px] rounded-[6px] px-[14px] text-[18px] font-medium leading-none ${
+                isPortraitSelection ? 'bg-white text-[#202124] shadow-sm' : 'text-[#68727d]'
+              }`}
+              onClick={() => setSelectionOrientation('portrait')}
+              type="button"
+            >
+              竖屏
+            </button>
+          </div>
           <button
             aria-pressed={isAllBoxesSelected}
             className={`inline-flex h-[34px] items-center gap-[7px] rounded-[6px] px-[8px] text-[18px] leading-none ${
@@ -6610,22 +6981,19 @@ function TabletOcrContentSelectionPage({
           <span className="whitespace-nowrap text-[20px] leading-none text-[#68727d]">
             已选中{selectedCount}题 / 已框选{boxes.length}题
           </span>
+          <button
+            className="h-[46px] rounded-[8px] bg-[#23bfb2] px-[24px] text-[20px] font-medium leading-none text-white shadow-[0_8px_18px_rgba(35,191,178,0.24)] active:bg-[#12a99d] disabled:bg-[#cfd7dd] disabled:shadow-none"
+            disabled={status === 'loading' || !activePage || selectedCount === 0}
+            onClick={() => setHasStarted(true)}
+            type="button"
+          >
+            开始识别
+          </button>
         </div>
       </div>
 
-      {status !== 'loading' && activePage ? (
-        <button
-          className="absolute left-[996px] top-[560px] z-20 flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#23bfb2] text-center text-[20px] font-medium leading-[23px] text-white shadow-[0_12px_26px_rgba(35,191,178,0.36)] active:bg-[#12a99d] disabled:bg-[#cfd7dd] disabled:shadow-none"
-          disabled={selectedCount === 0}
-          onClick={() => setHasStarted(true)}
-          type="button"
-        >
-          开始<br />识别
-        </button>
-      ) : null}
-
-      <main className="absolute bottom-0 left-0 right-0 top-[164px] flex">
-        <section className="relative h-full w-[1040px] border-r border-[#dfe5ea] bg-[#f8fafb]">
+      <main className="absolute bottom-0 left-0 right-0 top-[164px]">
+        <section className="relative h-full w-full bg-[#f8fafb]">
           {status === 'loading' ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#9fa4a6]">
               <img alt="" className="h-[204px] w-[342px] object-contain" src="/tablet-ocr-loading.png" />
@@ -6641,20 +7009,9 @@ function TabletOcrContentSelectionPage({
               </button>
             </div>
           )}
-        </section>
-
-        <section className="relative flex-1 bg-[#eef2f5]">
-          <div className="absolute left-1/2 top-[116px] -translate-x-1/2">
-            <StepThreeGuide mode={mode} />
-          </div>
           {status === 'failed' ? (
-            <div className="absolute left-1/2 top-[648px] -translate-x-1/2 rounded-full bg-[#fff8e8] px-[28px] py-[13px] text-[20px] leading-none text-[#b97412]">
-              自动切题未完成，可在左侧手动添加识别框
-            </div>
-          ) : null}
-          {hasStarted ? (
-            <div className="absolute bottom-[52px] left-1/2 -translate-x-1/2 rounded-full bg-[#202124] px-[30px] py-[15px] text-[21px] leading-none text-white shadow-[0_10px_28px_rgba(31,44,58,0.2)]">
-              已进入识别处理，核对结果页面待继续设计
+            <div className="absolute right-[32px] top-[28px] rounded-full bg-[#fff8e8] px-[28px] py-[13px] text-[20px] leading-none text-[#b97412] shadow-[0_8px_20px_rgba(185,116,18,0.12)]">
+              自动切题未完成，可手动添加识别框
             </div>
           ) : null}
         </section>
@@ -6951,6 +7308,22 @@ export function TabletAiEntryPreview() {
     ]);
   };
 
+  const handleQuestionCaptureReorder = (fromUrl: string, toUrl: string) => {
+    const updater = isSupplementCapture ? setSupplementQuestionImages : setQuestionImages;
+
+    updater((currentImages) => {
+      const fromIndex = currentImages.findIndex((image) => image.url === fromUrl);
+      const toIndex = currentImages.findIndex((image) => image.url === toUrl);
+
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return currentImages;
+
+      const nextImages = [...currentImages];
+      const [movedImage] = nextImages.splice(fromIndex, 1);
+      nextImages.splice(toIndex, 0, movedImage);
+      return nextImages;
+    });
+  };
+
   const handleCapturePrimary = () => {
     if (selectedMode === 'separate_answer') {
       if (captureRole === 'question') {
@@ -7097,6 +7470,7 @@ export function TabletAiEntryPreview() {
               onDeleteImage={handleDeleteCaptureImage}
               onMoveImage={handleMoveCaptureImage}
               onPrimary={handleCapturePrimary}
+              onQuestionReorder={handleQuestionCaptureReorder}
               onRoleChange={setCaptureRole}
               primaryDisabled={capturePrimaryDisabled}
               primaryText={capturePrimaryText}

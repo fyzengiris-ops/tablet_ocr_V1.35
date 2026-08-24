@@ -84,14 +84,32 @@ function tryFixAiJson(raw: string): string {
   }
 }
 
+function stripAnswerLabel(text: string): string {
+  return text.replace(/^\s*(?:【\s*)?答案(?:\s*】)?\s*[：:]\s*/u, '').trim();
+}
+
+function splitExplicitAnalysisMarker(answer: string, analysis: string) {
+  const marker = answer.match(/(?:【\s*解析\s*】|解析(?:\s*[：:]|\s+))/u);
+  if (!marker || marker.index === undefined) {
+    return { answer: stripAnswerLabel(answer), analysis };
+  }
+
+  const answerPart = stripAnswerLabel(answer.slice(0, marker.index));
+  const analysisPart = answer.slice(marker.index + marker[0].length).trim();
+  return {
+    answer: answerPart,
+    analysis: analysisPart ? [analysisPart, analysis].filter(Boolean).join('\n') : analysis,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as RecognizeRequest & { croppedMode?: boolean; subjectInfo?: string; answerOnly?: boolean; globalMatch?: boolean; contentOnly?: boolean; existingQuestions?: Array<{ id: number; number: number; content: string; questionType: string; hasAnswer: boolean; subQuestions?: Array<{ id: number; number: number; content: string; questionType: string; hasAnswer: boolean }> }>; answerMode?: boolean };
-    const { pages, userBoxes = [], options = {}, croppedMode = false, subjectInfo, answerOnly = false, globalMatch = false, contentOnly = false, existingQuestions = [], answerMode = false } = body;
+    const body = (await request.json()) as RecognizeRequest & { croppedMode?: boolean; questionAnswerMode?: boolean; subjectInfo?: string; answerOnly?: boolean; globalMatch?: boolean; contentOnly?: boolean; existingQuestions?: Array<{ id: number; number: number; content: string; questionType: string; hasAnswer: boolean; subQuestions?: Array<{ id: number; number: number; content: string; questionType: string; hasAnswer: boolean }> }>; answerMode?: boolean };
+    const { pages, userBoxes = [], options = {}, croppedMode = false, questionAnswerMode = false, subjectInfo, answerOnly = false, globalMatch = false, contentOnly = false, existingQuestions = [], answerMode = false } = body;
 
     // 调试日志：打印请求概要
     console.log('[RecognizeAPI] 收到请求:', {
-      mode: globalMatch ? 'globalMatch' : contentOnly ? 'contentOnly' : croppedMode ? 'cropped' : answerMode ? 'answer' : 'full',
+      mode: globalMatch ? 'globalMatch' : contentOnly ? 'contentOnly' : questionAnswerMode ? 'questionAnswer' : croppedMode ? 'cropped' : answerMode ? 'answer' : 'full',
       pagesCount: pages?.length,
       existingQuestionsCount: existingQuestions?.length,
       bodySizeHint: JSON.stringify(body).length,
@@ -137,6 +155,8 @@ export async function POST(request: NextRequest) {
       return handleGlobalMatchMode(client, pages, existingQuestions, customHeaders);
     } else if (contentOnly) {
       return handleContentOnlyMode(client, pages, customHeaders);
+    } else if (questionAnswerMode) {
+      return handleQuestionAnswerCroppedMode(client, pages, userBoxes, customHeaders, subjectInfo, options.validQuestionTypes);
     } else if (answerMode) {
       // 纯答案提取模式：对答案框进行答案提取，传入已有题目用于关联匹配
       return handleSmartMode(client, pages, userBoxes, customHeaders, subjectInfo, options.validQuestionTypes, existingQuestions);
@@ -237,6 +257,135 @@ async function handleContentOnlyMode(
         sendComplete(result);
       } catch (error) {
         sendError(error instanceof Error ? error.message : '解析失败');
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
+}
+
+async function handleQuestionAnswerCroppedMode(
+  client: LLMClient,
+  croppedImages: PageImage[],
+  userBoxes: QuestionBox[],
+  customHeaders: Record<string, string>,
+  subjectInfo?: string,
+  validQuestionTypes?: string[],
+) {
+  const messages = [
+    { role: 'system' as const, content: SYSTEM_PROMPT_CROPPED },
+    { role: 'user' as const, content: buildUserMessageCropped(croppedImages, subjectInfo, validQuestionTypes) },
+  ];
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendProgress = (message: string) => {
+        const data = JSON.stringify({ type: 'progress', data: { message } });
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+      };
+
+      const sendComplete = (result: object) => {
+        const data = JSON.stringify({ type: 'complete', data: { result } });
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+      };
+
+      const sendError = (error: string) => {
+        const data = JSON.stringify({ type: 'error', data: { error } });
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+      };
+
+      const MAX_RETRIES = 2;
+      let fullResponse = '';
+      let lastError = '';
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+        try {
+          sendProgress(attempt > 0 ? `网络异常，正在第${attempt}次重试...` : `正在识别 ${croppedImages.length} 道题目的题干、答案和解析...`);
+          const llmStream = client.stream(messages, {
+            model: 'ep-m-20260522100054-r72qh',
+            temperature: 0.3,
+          });
+
+          fullResponse = '';
+          const streamTimeout = 120000;
+          const streamStart = Date.now();
+
+          for await (const chunk of llmStream) {
+            if (Date.now() - streamStart > streamTimeout) {
+              throw new Error('识别超时，请减少框选数量后重试');
+            }
+            if (chunk.content) {
+              fullResponse += chunk.content.toString();
+            }
+          }
+          break;
+        } catch (streamError) {
+          lastError = streamError instanceof Error ? streamError.message : String(streamError);
+          if (attempt === MAX_RETRIES) {
+            sendError(lastError);
+            controller.close();
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
+
+      try {
+        sendProgress('正在解析题目答案结构...');
+        const parsedQuestions = parseCroppedAIResponse(fullResponse);
+        if (!parsedQuestions || parsedQuestions.length === 0) {
+          sendError('识别结果格式不正确，请重试');
+          controller.close();
+          return;
+        }
+
+        const matchedQuestions = parsedQuestions.map((question, index) => {
+          const box = userBoxes[question.imageIndex] || userBoxes[index];
+          const questionNumber = box?.questionNumber || index + 1;
+          const hasAnswer = !!question.answer?.trim() || !!question.analysis?.trim();
+
+          return {
+            id: index + 1,
+            number: questionNumber,
+            questionBoxId: box?.id || `box-${index}`,
+            questionBox: box,
+            pageNumber: box?.pageNumber || croppedImages[index]?.pageNumber || 1,
+            questionContent: question.content || '',
+            questionType: question.questionType,
+            optionCount: question.optionCount ?? undefined,
+            blankCount: question.blankCount ?? undefined,
+            answer: question.answer || '',
+            analysis: question.analysis || '',
+            answerSource: hasAnswer ? 'direct' as const : 'manual' as const,
+            status: hasAnswer ? 'matched' as const : 'pending_confirm' as const,
+            showRecognizedContent: false,
+            croppedImageData: croppedImages[question.imageIndex]?.imageData || croppedImages[index]?.imageData,
+          };
+        });
+
+        const boxTypes = userBoxes.map((box, index) => ({
+          boxId: box.id,
+          type: 'question' as const,
+          questionNumber: matchedQuestions[index]?.number ?? box.questionNumber ?? index + 1,
+        }));
+
+        sendComplete({
+          recognition: { pages: croppedImages, blocks: [], summary: { totalQuestions: matchedQuestions.length } },
+          matchedQuestions,
+          answerMarkers: [],
+          unmatchedAnswers: [],
+          boxTypes,
+        });
+      } catch (error) {
+        sendError(error instanceof Error ? error.message : '识别结果解析失败，请重试');
       }
       controller.close();
     },
@@ -576,6 +725,7 @@ async function handleGlobalMatchMode(
 ⚠️ 如果图片中没有某道题的答案或解析（比如该题在资料上就没有给答案），那么该题的 answer 和 analysis 字段必须为空字符串 ""。
 ⚠️ 绝对禁止根据题目内容自行推理、计算、编写答案或解析。这不是解题任务，这是OCR提取任务。
 ⚠️ 宁可留空也不能编造。留空是正确行为，编造是严重错误。
+⚠️ 每个返回结果都必须带 sourceText，sourceText 必须是从图片中逐字抄录的可见原文片段；如果找不到可见原文片段，found 必须为 false。
 
 ## 待匹配的题目（共${unmatchedQuestions.length}道）：
 ${questionsDetail}
@@ -597,6 +747,8 @@ ${questionsDetail}
 4. 找不到就留空：如果在所有页面中都找不到某题的答案/解析，answer和analysis都填 ""
 5. 复合题/大题答案解析必须保留子题标号；如果图片答案/解析区域出现 "（1）"、"(1)"、"1."、"1、"、"①" 等子题标号，请把这些标号和对应原文保留在父级 answer / analysis 中，前端会据此自动拆分到子题
 6. 如果同一题同时包含答案和解析，优先按图片原文中的“答案/解析”标识拆分到父级 answer 和 analysis；如果答案和解析在同一段里混排、无法可靠拆开，也要完整保留混排原文，不能删掉子题标号、答案标识或解析标识
+7. 如果原文出现“答案：XXXX解析：YYYY”、“答案：XXXX【解析】YYYY”这类明确标记，解析/【解析】标记后的全部文字必须放入 analysis，绝对不能放入 answer；解析标记前且符合答案特征的文字才放入 answer
+8. analysis 只能来自图片中明确出现的解析、详解、分析、解答过程、答案说明等原文；如果图片只有题目没有解析原文，analysis 必须为空字符串
 
 ## 输出格式（严格 JSON 数组）：
 [
@@ -605,6 +757,7 @@ ${questionsDetail}
     "questionNumber": 题号（数字）,
     "answer": "从图片中提取到的答案原文，找不到则填空字符串",
     "analysis": "从图片中提取到的解析原文，找不到则填空字符串",
+    "sourceText": "从图片中逐字抄录的答案/解析附近原文片段；找不到则填空字符串",
     "found": true或false（true表示在图片中找到了答案，false表示图片中没有这道题的答案）
   }
 ]
@@ -612,6 +765,7 @@ ${questionsDetail}
 注意：
 - questionId 必须使用输入中的原始 id 数字
 - found=false 时，answer 和 analysis 必须都是空字符串 ""
+- found=true 时，sourceText 不能为空；sourceText 为空的结果会被视为无效
 - 只输出没有答案的题目的匹配结果
 - 如果整页都没有任何可识别的答案，返回空数组 []`;
 
@@ -655,6 +809,8 @@ ${questionsDetail}
 1. 只从图片中提取已经印在纸上的答案和解析文字
 2. 如果某道题在所有页面上都找不到答案/解析，该题found填false，answer和analysis留空
 3. 绝对不要根据题目内容自己写答案或解析
+4. 每条 found=true 的结果必须提供 sourceText，sourceText 是图片中可见的答案/解析原文证据
+5. 遇到“答案：XXXX解析：YYYY”或“答案：XXXX【解析】YYYY”时，解析/【解析】后面的文字必须拆到 analysis，不能放在 answer
 重点扫描后半部分页面（通常是答案区域）。`,
           });
 
@@ -772,14 +928,40 @@ ${questionsDetail}
           // 答案和解析都为空才跳过；有些题只有解析区域可匹配
           const answerText = typeof m.answer === 'string' ? m.answer.trim() : '';
           const analysisText = typeof m.analysis === 'string' ? m.analysis.trim() : '';
-          if (!answerText && !analysisText) return false;
+          const splitText = splitExplicitAnalysisMarker(answerText, analysisText);
+          const sourceText = typeof m.sourceText === 'string'
+            ? m.sourceText.trim()
+            : typeof m.evidence === 'string'
+              ? m.evidence.trim()
+              : typeof m.source === 'string'
+                ? m.source.trim()
+                : '';
+          if (!splitText.answer && !splitText.analysis) return false;
+          if (!sourceText) {
+            console.warn(`[全局匹配警告] 第${m.questionNumber || m.questionId}题缺少图片原文依据，跳过`);
+            return false;
+          }
           return true;
-        }).map((m: any) => ({
-          questionId: m.questionId,
-          questionNumber: typeof m.questionNumber === 'number' ? m.questionNumber : 0,
-          answer: typeof m.answer === 'string' ? m.answer.trim() : '',
-          analysis: (typeof m.analysis === 'string' ? m.analysis : '').trim(),
-        }));
+        }).map((m: any) => {
+          const splitText = splitExplicitAnalysisMarker(
+            typeof m.answer === 'string' ? m.answer.trim() : '',
+            (typeof m.analysis === 'string' ? m.analysis : '').trim(),
+          );
+
+          return {
+            questionId: m.questionId,
+            questionNumber: typeof m.questionNumber === 'number' ? m.questionNumber : 0,
+            answer: splitText.answer,
+            analysis: splitText.analysis,
+            sourceText: (typeof m.sourceText === 'string'
+              ? m.sourceText
+              : typeof m.evidence === 'string'
+                ? m.evidence
+                : typeof m.source === 'string'
+                  ? m.source
+                  : '').trim(),
+          };
+        });
 
         // 二次校验：检查是否有明显错配（如选择题答案不是选项字母）
         const finalMatches = validMatches.filter((m: any) => {

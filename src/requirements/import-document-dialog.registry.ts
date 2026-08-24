@@ -71,6 +71,8 @@ export const importDocumentDialogRegistry: RequirementRegistry = {
       id: 'IMPORT_DOCUMENT_DIALOG-002',
       title: '本地上传入口与支持格式',
       sourceType: 'code+decision',
+      changeType: 'changed',
+      changeDate: '6.21',
       objectType: 'region',
       objectName: '本地上传区域',
       module: moduleName,
@@ -88,27 +90,28 @@ export const importDocumentDialogRegistry: RequirementRegistry = {
       display: {
         title: '本地上传入口展示',
         description:
-          '本地上传 Tab 展示虚线上传区域，文案为“文件拖拽到此处上传, 或点击添加”，并说明支持 PNG/JPG/JPEG、PDF、DOC/DOCX 格式，一次最多支持识别 24 页内容。',
-        fields: ['上传区域', '文件拖拽到此处上传, 或点击添加', '支持格式说明'],
-        states: ['默认态', '拖拽悬停态'],
+          '本地上传 Tab 展示虚线上传区域，文案为“文件拖拽到此处上传, 或点击添加”，并说明支持 PNG/JPG/JPEG、PDF、DOC/DOCX 格式，一次最多支持识别 24 页内容。【6.21】本地上传遵循乐课网单文件大小上限，超出上限的文件不进入上传列表。',
+        fields: ['上传区域', '文件拖拽到此处上传, 或点击添加', '支持格式说明', '【6.21】单文件大小上限提示'],
+        states: ['默认态', '拖拽悬停态', '【6.21】单文件超限：显示「请上传 X M 以内的文件」'],
       },
       operation: {
         title: '本地文件选择与拖拽上传',
         description:
-          '用户可以点击上传区域选择文件，也可以将文件拖拽到上传区域。业务逻辑和实际开发均需支持图片、PDF、DOC、DOCX 文件上传。',
+          '用户可以点击上传区域选择文件，也可以将文件拖拽到上传区域。业务逻辑和实际开发均需支持图片、PDF、DOC、DOCX 文件上传。【6.21】单文件大小限制与乐课网上传文件大小限制保持一致，用户选择或拖入的单个文件超过限制时，系统拦截该文件并提示「请上传 X M 以内的文件」，其中 X 为乐课网文件大小限制数值。',
         permission: '沿用作业管理页中 AI 小乐识别资料入口的使用权限。',
         dataFlow: '用户选择或拖入的本地文件进入本弹窗上传列表，后续随统一学段学科和页码范围传递给上传录题流程。',
         exceptions:
-          '拖拽或选择不支持格式时，不支持的文件不加入上传列表，并提示“仅支持 PNG/JPG/JPEG、PDF、DOC/DOCX 格式，请重新上传”。',
+          '拖拽或选择不支持格式时，不支持的文件不加入上传列表，并提示“仅支持 PNG/JPG/JPEG、PDF、DOC/DOCX 格式，请重新上传”。【6.21】单文件大小超出乐课网上限时，不加入上传列表，并提示「请上传 X M 以内的文件」。',
       },
       acceptance: [
         '用户应能通过点击上传区域选择本地文件。',
         '用户应能通过拖拽方式添加本地文件。',
         '不支持格式不应进入上传列表，并应展示已确认的格式提示文案。',
+        '【6.21】单文件超出乐课网上限时，应拦截并展示「请上传 X M 以内的文件」提示。',
       ],
       source: {
         decisionFile,
-        decisionObject: '上传区域：本地上传支持格式 / 不支持格式处理',
+        decisionObject: '上传区域：本地上传支持格式 / 不支持格式处理 / 6.21 需求评审异常场景',
         relatedFiles,
       },
     },
