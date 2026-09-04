@@ -12,6 +12,7 @@ import {
   isUsefulRequirementText,
   splitTextIntoReadableItems,
 } from './requirement-utils';
+import { useRequirementReviewOverrides } from './requirement-review-storage';
 
 interface RequirementPanelProps {
   registries: RequirementRegistry[];
@@ -28,20 +29,51 @@ function sourceTypeLabel(sourceType: RequirementItem['sourceType']) {
   return '代码+决策';
 }
 
-function ReadableText({ value }: { value: string }) {
-  const items = splitTextIntoReadableItems(value);
+function isUsefulReadableValue(value: string | string[]) {
+  if (Array.isArray(value)) {
+    return value.some((item) => isUsefulRequirementText(item));
+  }
+
+  return isUsefulRequirementText(value);
+}
+
+function EmphasizedFlowText({ value }: { value: string }) {
+  const match = value.match(/^(正常拍摄流程|补充资料流程)：([\s\S]*)$/);
+
+  if (!match) {
+    return <>{value}</>;
+  }
+
+  return (
+    <>
+      <strong className="font-semibold text-gray-900">{match[1]}</strong>
+      ：{match[2]}
+    </>
+  );
+}
+
+function ReadableText({ value }: { value: string | string[] }) {
+  const items = Array.isArray(value)
+    ? value.map((item) => item.trim()).filter((item) => isUsefulRequirementText(item))
+    : splitTextIntoReadableItems(value);
 
   if (items.length > 1) {
     return (
       <ul className="mt-1.5 list-disc space-y-1.5 pl-4 leading-5 text-gray-700">
         {items.map((item, index) => (
-          <li key={`${item}-${index}`}>{item}</li>
+          <li key={`${item}-${index}`}>
+            <EmphasizedFlowText value={item} />
+          </li>
         ))}
       </ul>
     );
   }
 
-  return <p className="mt-1.5 leading-5 text-gray-700">{items[0] ?? value}</p>;
+  return (
+    <p className="mt-1.5 leading-5 text-gray-700">
+      <EmphasizedFlowText value={items[0] ?? ''} />
+    </p>
+  );
 }
 
 function DetailBlock({ title, children }: { title: string; children: ReactNode }) {
@@ -73,7 +105,7 @@ function RequirementDetail({
     { title: '使用范围', value: requirement.operation.permission },
     { title: '后续流程', value: requirement.operation.dataFlow },
     { title: '异常边界', value: requirement.operation.exceptions },
-  ].filter((item) => isUsefulRequirementText(item.value));
+  ].filter((item) => isUsefulReadableValue(item.value));
 
   return (
     <div className="space-y-3">
@@ -131,9 +163,20 @@ export function RequirementPanel({
   onClose,
 }: RequirementPanelProps) {
   const [expandedRequirementId, setExpandedRequirementId] = useState<string | null>(null);
+  const reviewOverrides = useRequirementReviewOverrides();
   const displayNumbersByRequirementId = useMemo(
-    () => createRequirementDisplayNumberMap(displayNumberRegistries ?? registries),
-    [displayNumberRegistries, registries],
+    () => {
+      const defaultDisplayNumbers = createRequirementDisplayNumberMap(displayNumberRegistries ?? registries);
+
+      for (const [requirementId, reviewOverride] of Object.entries(reviewOverrides)) {
+        if (reviewOverride.displayNumber !== undefined) {
+          defaultDisplayNumbers.set(requirementId, reviewOverride.displayNumber);
+        }
+      }
+
+      return defaultDisplayNumbers;
+    },
+    [displayNumberRegistries, registries, reviewOverrides],
   );
   const allRequirementsById = useMemo(
     () => createRequirementMap((allRegistries ?? registries).flatMap(r => r.requirements)),
@@ -185,7 +228,18 @@ export function RequirementPanel({
                               {group.title}
                             </div>
                           )}
-                          {group.requirements.map((requirement, requirementIndex) => {
+                          {[...group.requirements]
+                            .sort((firstRequirement, secondRequirement) => {
+                              const firstNumber = displayNumbersByRequirementId.get(firstRequirement.id) ?? Number.MAX_SAFE_INTEGER;
+                              const secondNumber = displayNumbersByRequirementId.get(secondRequirement.id) ?? Number.MAX_SAFE_INTEGER;
+
+                              if (firstNumber !== secondNumber) {
+                                return firstNumber - secondNumber;
+                              }
+
+                              return group.requirements.indexOf(firstRequirement) - group.requirements.indexOf(secondRequirement);
+                            })
+                            .map((requirement, requirementIndex) => {
                             const selected = selectedRequirementId === requirement.id;
                             const displayNumber = displayNumbersByRequirementId.get(requirement.id) ?? requirementIndex + 1;
 

@@ -1,194 +1,118 @@
 ---
 name: requirement-marker-reviewer
-description: 当需要在 src/requirements 需求注册表基础上，为已经调整好的前端页面或页面局部添加需求编号角标、稳定 data-req-anchor、点击悬浮业务逻辑面板时使用；用于让用户在具体组件、按钮、字段、文案旁边分批核对业务逻辑。不创建右侧 PRD 阅读面板、不实现拖拽分栏、不执行 PRD 卡片定位/activate 联动，也不生成 Markdown PRD。
+description: 当需要在 src/requirements 需求注册表基础上，为平板端 OCR 页面或页面局部添加需求编号角标、稳定 data-req-anchor、点击悬浮业务逻辑面板时使用；用于让用户在具体组件、按钮、字段、文案旁边分批核对业务逻辑。当前保守方案下，悬浮面板展示现有 display / operation，不创建右侧 PRD 阅读面板、不执行 activate 联动，也不生成 Markdown PRD。
 ---
 
 # 页面逻辑角标核对 Skill
 
 ## 目标
 
-基于 `src/requirements` 中的需求注册表，把页面里需要核对业务逻辑的组件、按钮、字段、文案和状态入口标出来。
+基于 `src/requirements` 中的需求注册表，把页面里需要核对业务逻辑的对象标出来。
 
 最终效果：
 
 - 页面对象附近展示需求编号角标。
-- 点击编号角标后，以悬浮业务逻辑面板阅读对应需求。
-- 悬浮面板按“显示说明 / 操作说明”展示。
-- 可以按页面、模块、组件或一组需求分批完成，方便用户边看边审。
-- 不接入右侧 PRD 阅读面板，不做全局高亮联动，不生成 Markdown PRD。
+- 点击角标后打开悬浮业务逻辑面板。
+- 面板按当前项目现有 `display` / `operation` 展示业务逻辑。
+- 可分批完成核对。
+- 不接入右侧 PRD 面板，不执行 `activate`，不生成 Markdown PRD。
 
-## 必须读取的文件
-
-执行前必须读取：
+执行前必须先读：
 
 ```txt
+.ai/skills/shared/project-context.md
+.ai/skills/shared/logic-writing-spec.md
 src/requirements/index.ts
 src/requirements/schema.ts
-.ai/skills/shared/logic-writing-spec.md
+src/components/prd/RequirementMarker.tsx
+src/components/prd/RequirementFloatingCard.tsx
+src/components/prd/requirement-utils.ts
 ```
 
-如果用户指定某个页面、组件或流程，还要读取对应的：
+若指定页面，还要读：
 
 ```txt
 src/requirements/<页面或流程>.registry.ts
 ```
 
-如果 `src/requirements` 不存在，停止执行，并提示用户先运行 `requirement-registry-writer`。
+若 `src/requirements` 不存在，停止并提示先运行 `requirement-registry-writer`。
 
 ## 执行边界
 
-本 Skill 只负责“页面内核对入口”：
+可以：
 
-- 可以新增或复用 `RequirementMarker`、`RequirementAnchor`、`RequirementFloatingCard`、`requirement-utils`。
-- 可以在本次指定页面或组件中添加 `data-req-anchor` 和需求编号角标。
-- 可以调整很小范围的局部包裹结构，但不能破坏页面视觉和交互。
-- 不创建 `RequirementReaderShell`。
-- 不创建右侧 `RequirementPanel`。
-- 不实现拖拽分栏。
-- 不执行 `activate` 路径。
-- 不生成 `docs/prd/*.prd.md`。
+- 复用或最小调整 `src/components/prd/RequirementMarker.tsx`、`RequirementFloatingCard.tsx`、`requirement-utils.ts`。
+- 在目标 React 组件加 `data-req-anchor` 与 `RequirementMarker`。
+- 做不影响视觉主交互的最小包裹。
 
-在 DeepSeek 或其他工具并行修改项目时，执行前必须先向用户列出预计会修改的文件。除非用户明确允许，不要改本次页面以外的业务页面、全局布局、全局样式或 shadcn/ui 基础组件。
+不可以：
 
-## 推荐实现结构
+- 创建右侧 PRD Reader Shell。
+- 实现拖拽分栏。
+- 执行 `activate`。
+- 生成 Markdown PRD。
+- 改写、重分类、扩写 registry 正文；发现正文问题时提示先回 Skill2 或 Skill6。
+- 新增 `logicSections` 作为渲染依赖。
 
-优先新增通用组件，不要把悬浮逻辑写死在某个页面里。
+## 悬浮面板渲染
 
-建议文件：
+当前保守方案下，悬浮面板必须读取现有字段：
 
-```txt
-src/components/prd/RequirementMarker.tsx
-src/components/prd/RequirementAnchor.tsx
-src/components/prd/RequirementFloatingCard.tsx
-src/components/prd/requirement-utils.ts
-```
+1. `requirement.display`
+2. `requirement.operation`
+3. `acceptance` 可按现有组件规则展示
 
-职责划分：
+分组标题必须读取注册表中根据实际业务逻辑生成的标题，或依据非空正文做语义归类后生成；不得在展示组件中把所有需求统一写死为“显示说明”“操作说明”“权限规则”“数据流转”“异常”等固定栏目。示例标题只表示推荐的简短风格，不是固定集合。
 
-- `RequirementMarker`：显示需求编号角标，负责点击、选中态和基础定位。
-- `RequirementAnchor`：可选包装器，为页面对象绑定 `data-req-anchor` 和角标。
-- `RequirementFloatingCard`：展示悬浮业务逻辑说明。
-- `requirement-utils.ts`：按 id 查找需求、按 anchor 查找需求、过滤空兜底说明。
+悬浮面板禁止：
 
-如果页面结构不适合包装，优先手动放置 `RequirementMarker`，避免改变原型布局。
+- 展示空兜底说明。
+- 展示技术字段名、大段路径、`excludedDecisions`。
+- 因 skill 迁移强行改成未被当前 schema 支持的 `logicSections`。
+- 对已有条目再套多层编号造成双编号。
+- 忽略 registry 中的实际标题，使用展示层硬编码标题覆盖。
 
-## 页面锚点规则
-
-每个需要核对的页面对象都应有稳定锚点：
+## 页面锚点与角标
 
 ```tsx
 data-req-anchor="<anchorId>"
 ```
 
-锚点必须来自注册表中的 `requirement.anchorId`，不能基于数组下标、随机数或运行时动态值生成。
+锚点必须来自注册表 `anchorId`。
 
-如果对应对象不方便直接加属性，可以在外层包一层 `span` 或 `div`，但要保持原布局、间距、点击区域和无障碍语义。
+贴准规则：
 
-## 需求编号角标规则
+1. 角标必须贴在本条需求对应的具体对象上，例如按钮、步骤、Tab、文件列表、题干框、答案框。
+2. 禁止把字段级需求的锚点只挂在无关父级大容器上。
+3. 无独立 UI 的口径规则，挂在注册表指定的最强关联落点旁。
+4. 小尺寸对象优先使用紧邻或行内贴标，避免绝对定位漂到远处角落。
+5. 页面角标显示本批连续短号；悬浮面板内仍显示完整需求编号。
+6. 角标可靠近对象、不遮挡主操作、可点击、选中态清晰。
 
-角标建议显示短编号，例如：
+## 分批核对
 
-- `001`
-- `002`
-- `AI_CHAT_PANEL-005`
-
-如果某个页面只展示本批需要核对的部分需求，页面角标显示编号应按当前可见角标从 `1` 连续编号，不要因为隐藏了非本期需求而从原始需求尾号开始。悬浮面板内仍展示完整需求编号，保证追溯稳定。
-
-角标必须：
-
-- 靠近对应组件、按钮、字段或文案。
-- 不遮挡用户主要阅读和点击区域。
-- 可点击。
-- 支持选中态。
-- hover 或悬浮面板中展示完整编号和标题。
-
-如果一个页面区域对应多条需求，可以放一个聚合入口，但悬浮面板中必须能区分每条需求。
-
-## 悬浮业务逻辑面板
-
-点击页面需求编号角标时，显示悬浮面板。
-
-悬浮面板应包含：
-
-- 需求编号
-- 需求标题
-- 显示说明
-- 操作说明
-- 产品化分类小标题，例如“页面展示”“操作规则”“使用范围”“后续流程”“异常边界”
-- `1、`、`2、` 形式的逐条编号，方便用户逐条核对
-
-悬浮面板应支持：
-
-- 根据当前角标位置，在视口内选择合适位置展示。
-- 通过标题栏拖动到页面其他位置阅读。
-- 拖拽右下角调整宽高。
-
-悬浮面板不应包含：
-
-- 空兜底说明
-- 大段来源文件路径
-- `excludedDecisions`
-- 右侧 PRD 面板入口或分栏拖拽控制
-- `display.title`、`operation.title` 这类注册表内部标题
-- `state`、`props`、`callback`、接口名、组件内部、父组件、字段名等技术实现表达
-
-业务逻辑展示必须遵循：
+优先顺序：
 
 ```txt
-.ai/skills/shared/logic-writing-spec.md
+主流程 -> 关键入口 -> 字段/步骤/Tab -> 弹窗/空态/异常
 ```
 
-用户侧默认不展示下列空兜底内容：
+每批说明：已加角标编号、对应对象、未处理范围、是否改了公共 PRD 组件。
 
-- 无额外权限限制
-- 无额外数据流转
-- 无异常场景
-- 本对象无操作入口
-- 本对象仅展示
-- 空字符串
-- 空数组
-
-## 分批核对规则
-
-如果一个页面需求较多，优先按下面粒度分批：
-
-1. 页面主流程区域。
-2. 关键按钮和操作入口。
-3. 表单字段、筛选项、上传入口。
-4. 弹窗、面板、空状态、异常状态。
-
-每完成一批，回复中必须说明：
-
-- 本批已加角标的需求编号。
-- 本批涉及的页面对象。
-- 暂未处理的需求编号或页面区域。
-- 是否改动了公共组件。
-
-## 验证要求
-
-实现后必须运行：
+## 验证
 
 ```txt
 pnpm ts-check
 ```
 
-如果改动涉及 lint 规则，也运行：
+并检查：
 
-```txt
-pnpm lint
-```
+- `/tablet-ai-entry` 可打开。
+- 角标可点击。
+- 悬浮面板显示 `display` / `operation` 内容。
+- 无空栏目、无双编号、无遮挡。
 
-如果实现了可视交互，尽量启动开发服务并检查：
-
-- 页面正常显示。
-- 编号角标不遮挡主要内容。
-- 点击角标能打开悬浮业务逻辑面板。
-- 切换角标时悬浮内容同步变化。
-- 空兜底说明不会显示给用户。
-
-## 输出给用户的完成摘要
-
-实现完成后，按下面格式简要回复：
+## 完成摘要
 
 ```md
 一、实现结果
@@ -202,6 +126,6 @@ pnpm lint
 - ...
 
 四、验证结果
-- pnpm ts-check：通过/失败
-- 其他验证：...
+- pnpm ts-check：通过/失败/未运行（说明原因）
+- 页面检查：...
 ```

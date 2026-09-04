@@ -32,7 +32,7 @@ export interface RequirementDisplay {
   /** 中文名称：显示说明标题；用途：概括页面展示点；使用方：Skill3、Skill4 */
   title: string;
   /** 中文名称：显示说明正文；用途：只描述用户能看见什么；使用方：Skill3、Skill4 */
-  description: string;
+  description: string | string[];
   /** 中文名称：涉及字段；用途：列出展示相关字段、按钮、文案、区域；使用方：Skill3、Skill4 */
   fields?: string[];
   /** 中文名称：涉及状态；用途：列出禁用态、空态、加载态等；使用方：Skill3、Skill4 */
@@ -43,13 +43,13 @@ export interface RequirementOperation {
   /** 中文名称：操作说明标题；用途：概括操作规则；使用方：Skill3、Skill4 */
   title: string;
   /** 中文名称：操作说明正文；用途：描述用户如何操作或不能如何操作；使用方：Skill3、Skill4 */
-  description: string;
+  description: string | string[];
   /** 中文名称：权限说明；用途：描述角色、页面权限、是否沿用父页面权限；使用方：Skill3、Skill4 */
-  permission: string;
+  permission: string | string[];
   /** 中文名称：数据流转；用途：描述是否产生数据、写入哪里、如何传递；使用方：Skill3、Skill4 */
-  dataFlow: string;
+  dataFlow: string | string[];
   /** 中文名称：异常情况；用途：描述异常、禁用、失败、重复操作等处理；使用方：Skill3、Skill4 */
-  exceptions: string;
+  exceptions: string | string[];
 }
 
 export interface RequirementSource {

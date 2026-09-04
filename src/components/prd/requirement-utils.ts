@@ -13,6 +13,7 @@ export interface RequirementDisplayGroup {
 }
 
 export interface RequirementReadableSection {
+  id: string;
   category: string;
   content: string | string[];
 }
@@ -95,6 +96,61 @@ export const requirementDisplayGroupConfigs: Record<string, RequirementDisplayGr
   ],
   'question-answer-review-step': [
     {
+      id: 'tablet-questions-only-image-mode',
+      title: '平板端仅题目图片模式',
+      requirementIds: [
+        'TABLET_REVIEW_IMAGE-001',
+        'TABLET_REVIEW_IMAGE-002',
+        'TABLET_REVIEW_IMAGE-003',
+        'TABLET_REVIEW_IMAGE-004',
+        'TABLET_REVIEW_IMAGE-005',
+        'TABLET_REVIEW_IMAGE-006',
+        'TABLET_REVIEW_IMAGE-007',
+        'TABLET_REVIEW_IMAGE-008',
+        'TABLET_REVIEW_IMAGE-009',
+        'TABLET_REVIEW_IMAGE-010',
+        'TABLET_REVIEW_IMAGE-011',
+        'TABLET_REVIEW_IMAGE-012',
+        'TABLET_REVIEW_IMAGE-013',
+        'TABLET_REVIEW_IMAGE-014',
+        'TABLET_REVIEW_IMAGE-015',
+        'TABLET_REVIEW_IMAGE-016',
+        'TABLET_REVIEW_IMAGE-017',
+        'TABLET_REVIEW_IMAGE-018',
+      ],
+    },
+    {
+      id: 'tablet-questions-only-recognition-mode',
+      title: '平板端仅题目识别模式',
+      requirementIds: [
+        'TABLET_REVIEW_RECOGNITION-002',
+        'TABLET_REVIEW_RECOGNITION-003',
+        'TABLET_REVIEW_RECOGNITION-004',
+        'TABLET_REVIEW_RECOGNITION-005',
+        'TABLET_REVIEW_RECOGNITION-006',
+      ],
+    },
+    {
+      id: 'tablet-question-answer-image-mode',
+      title: '平板端题目+答案图片模式',
+      requirementIds: [
+        'TABLET_REVIEW_QA_IMAGE-001',
+        'TABLET_REVIEW_QA_IMAGE-004',
+        'TABLET_REVIEW_QA_IMAGE-005',
+        'TABLET_REVIEW_QA_IMAGE-006',
+        'TABLET_REVIEW_QA_IMAGE-007',
+        'TABLET_REVIEW_QA_IMAGE-008',
+        'TABLET_REVIEW_QA_IMAGE-009',
+        'TABLET_REVIEW_QA_IMAGE-010',
+        'TABLET_REVIEW_QA_IMAGE-013',
+        'TABLET_REVIEW_QA_IMAGE-015',
+        'TABLET_REVIEW_QA_IMAGE-016',
+        'TABLET_REVIEW_QA_IMAGE-022',
+        'TABLET_REVIEW_QA_IMAGE-018',
+        'TABLET_REVIEW_QA_IMAGE-002',
+      ],
+    },
+    {
       id: 'single-mode',
       title: '仅识别题目模式及通用核查',
       requirementIds: [
@@ -123,6 +179,52 @@ export const requirementDisplayGroupConfigs: Record<string, RequirementDisplayGr
       ],
     },
   ],
+  'tablet-capture-page': [
+    {
+      id: 'page-markers',
+      title: '拍摄资料',
+      requirementIds: [
+        'TABLET_CAPTURE-001',
+        'TABLET_CAPTURE-002',
+        'TABLET_CAPTURE-003',
+        'TABLET_CAPTURE-004',
+        'TABLET_CAPTURE-005',
+        'TABLET_CAPTURE-006',
+        'TABLET_CAPTURE-007',
+        'TABLET_CAPTURE-008',
+        'TABLET_CAPTURE-009',
+      ],
+    },
+  ],
+  'tablet-question-content-selection-page': [
+    {
+      id: 'page-markers',
+      title: '选择识别内容',
+      requirementIds: [
+        'TABLET_QUESTION_CONTENT_SELECTION-001',
+        'TABLET_QUESTION_CONTENT_SELECTION-002',
+        'TABLET_QUESTION_CONTENT_SELECTION-003',
+        'TABLET_QUESTION_CONTENT_SELECTION-004',
+        'TABLET_QUESTION_CONTENT_SELECTION-005',
+        'TABLET_QUESTION_CONTENT_SELECTION-006',
+        'TABLET_QUESTION_CONTENT_SELECTION-007',
+        'TABLET_QUESTION_CONTENT_SELECTION-008',
+        'TABLET_QUESTION_CONTENT_SELECTION-009',
+        'TABLET_QUESTION_CONTENT_SELECTION-010',
+        'TABLET_QUESTION_CONTENT_SELECTION-011',
+        'TABLET_QUESTION_CONTENT_SELECTION-012',
+        'TABLET_QUESTION_CONTENT_SELECTION-013',
+        'TABLET_QUESTION_CONTENT_SELECTION-014',
+        'TABLET_QUESTION_CONTENT_SELECTION-015',
+        'TABLET_QUESTION_CONTENT_SELECTION-016',
+        'TABLET_QUESTION_CONTENT_SELECTION-017',
+        'TABLET_QUESTION_CONTENT_SELECTION-018',
+        'TABLET_QUESTION_CONTENT_SELECTION-021',
+        'TABLET_QUESTION_CONTENT_SELECTION-022',
+        'TABLET_QUESTION_CONTENT_SELECTION-023',
+      ],
+    },
+  ],
 };
 
 export function isUsefulRequirementText(content?: string) {
@@ -143,7 +245,11 @@ export function splitTextIntoReadableItems(value: string) {
     .filter(Boolean);
 }
 
-function createSection(category: string, content?: string | string[]): RequirementReadableSection | null {
+function createSection(
+  id: string,
+  category: string,
+  content?: string | string[],
+): RequirementReadableSection | null {
   if (Array.isArray(content)) {
     const items = filterUsefulItems(content);
 
@@ -152,6 +258,7 @@ function createSection(category: string, content?: string | string[]): Requireme
     }
 
     return {
+      id,
       category,
       content: items,
     };
@@ -164,6 +271,7 @@ function createSection(category: string, content?: string | string[]): Requireme
   }
 
   return {
+    id,
     category,
     content: normalized,
   };
@@ -270,8 +378,11 @@ export function createRequirementDisplayNumberMap(registries: RequirementRegistr
 
 export function getDisplaySections(requirement: RequirementItem) {
   return [
-    createSection('页面展示', requirement.display.description),
-    createSection('状态反馈', filterUsefulStates(requirement.display.states)),
+    createSection(
+      'display.description',
+      requirement.display.title.trim() || '展示规则',
+      requirement.display.description,
+    ),
   ].filter(
     (item): item is RequirementReadableSection => Boolean(item),
   );
@@ -279,9 +390,17 @@ export function getDisplaySections(requirement: RequirementItem) {
 
 export function getOperationSections(requirement: RequirementItem) {
   return [
-    createSection('操作规则', requirement.operation.description),
-    createSection('使用范围', requirement.operation.permission),
-    createSection('后续流程', requirement.operation.dataFlow),
-    createSection('异常边界', requirement.operation.exceptions),
+    createSection(
+      'operation.description',
+      requirement.operation.title.trim() || '操作规则',
+      requirement.operation.description,
+    ),
+    createSection('operation.permission', '权限规则', requirement.operation.permission),
+    createSection('operation.dataFlow', '数据流转', requirement.operation.dataFlow),
+    createSection('operation.exceptions', '异常处理', requirement.operation.exceptions),
   ].filter((item): item is RequirementReadableSection => Boolean(item));
+}
+
+export function getRequirementBusinessLogicSections(requirement: RequirementItem) {
+  return [...getDisplaySections(requirement), ...getOperationSections(requirement)];
 }

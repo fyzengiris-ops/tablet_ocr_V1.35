@@ -1,12 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { RequirementItem } from '@/requirements';
 import { cn } from '@/lib/utils';
 import { RequirementFloatingCard } from './RequirementFloatingCard';
 import { useRequirementReader } from './RequirementReaderShell';
+import {
+  moveRequirementDisplayNumber,
+  useRequirementReviewOverride,
+  type RequirementDisplayNumberScopeItem,
+} from './requirement-review-storage';
 import { getRequirementShortId } from './requirement-utils';
 
 interface FloatingCardPlacement {
@@ -26,6 +31,7 @@ interface RequirementMarkerProps {
   onToggle: () => void;
   onClose: () => void;
   displayNumber?: number;
+  displayNumberScope?: RequirementDisplayNumberScopeItem[];
   className?: string;
 }
 
@@ -33,6 +39,9 @@ const CARD_GAP = 10;
 const VIEWPORT_MARGIN = 12;
 const DEFAULT_CARD_WIDTH = 360;
 const DEFAULT_CARD_HEIGHT = 320;
+const SINGLE_CLICK_DELAY = 240;
+const LONG_PRESS_DELAY = 450;
+const POINTER_MOVE_TOLERANCE = 7;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -103,15 +112,33 @@ export function RequirementMarker({
   onToggle,
   onClose,
   displayNumber,
+  displayNumberScope,
   className,
 }: RequirementMarkerProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressNextClickRef = useRef(false);
+  const markerDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    active: boolean;
+  } | null>(null);
   const [placement, setPlacement] = useState<FloatingCardPlacement | null>(null);
+  const [isEditingNumber, setIsEditingNumber] = useState(false);
+  const [numberDraft, setNumberDraft] = useState('');
+  const [isDraggingMarker, setIsDraggingMarker] = useState(false);
+  const [markerOffset, setMarkerOffset] = useState({ x: 0, y: 0 });
   const lastAutoOpenedRevisionRef = useRef<number | null>(null);
+  const { reviewOverride, updateReviewOverride } = useRequirementReviewOverride(requirement.id);
   const requirementReader = useRequirementReader();
   const selectedByReader = requirementReader?.selectedRequirementId === requirement.id;
   const selectionRevision = requirementReader?.selectionRevision ?? 0;
-  const displayLabel = displayNumber ? `需求 ${displayNumber}` : requirement.id;
+  const resolvedDisplayNumber = reviewOverride.displayNumber ?? displayNumber;
+  const displayLabel = resolvedDisplayNumber ? `需求 ${resolvedDisplayNumber}` : requirement.id;
   const isNew = requirement.changeType === 'new' || requirement.changeType === 'changed';
   const handleClose = () => {
     if (selectedByReader) {
@@ -119,6 +146,118 @@ export function RequirementMarker({
     }
 
     onClose();
+  };
+
+  const openOrCloseMarker = () => {
+    if (isOpen) {
+      handleClose();
+      return;
+    }
+
+    if (buttonRef.current) {
+      setPlacement(getCardPlacement(buttonRef.current.getBoundingClientRect()));
+    }
+
+    requirementReader?.setSelectedRequirement(requirement.id, requirement.anchorId);
+    onToggle();
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const commitDisplayNumber = () => {
+    const nextNumber = Number.parseInt(numberDraft, 10);
+
+    if (Number.isFinite(nextNumber) && nextNumber > 0) {
+      moveRequirementDisplayNumber(requirement.id, nextNumber, displayNumberScope);
+    }
+
+    setIsEditingNumber(false);
+  };
+
+  const handleMarkerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (isEditingNumber || event.button !== 0) {
+      return;
+    }
+
+    event.stopPropagation();
+    clearLongPressTimer();
+    markerDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: markerOffset.x,
+      originY: markerOffset.y,
+      active: false,
+    };
+
+    longPressTimerRef.current = setTimeout(() => {
+      if (!markerDragRef.current || markerDragRef.current.pointerId !== event.pointerId) {
+        return;
+      }
+
+      markerDragRef.current.active = true;
+      setIsDraggingMarker(true);
+      buttonRef.current?.setPointerCapture(event.pointerId);
+    }, LONG_PRESS_DELAY);
+  };
+
+  const handleMarkerPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const dragState = markerDragRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.stopPropagation();
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+
+    if (!dragState.active) {
+      if (Math.hypot(deltaX, deltaY) > POINTER_MOVE_TOLERANCE) {
+        clearLongPressTimer();
+        markerDragRef.current = null;
+      }
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setMarkerOffset({
+      x: Math.round(dragState.originX + deltaX),
+      y: Math.round(dragState.originY + deltaY),
+    });
+  };
+
+  const finishMarkerDrag = (event: PointerEvent<HTMLButtonElement>) => {
+    const dragState = markerDragRef.current;
+
+    clearLongPressTimer();
+    event.stopPropagation();
+
+    if (dragState?.active) {
+      const nextOffset = {
+        x: Math.round(dragState.originX + event.clientX - dragState.startX),
+        y: Math.round(dragState.originY + event.clientY - dragState.startY),
+      };
+
+      event.preventDefault();
+      event.stopPropagation();
+      suppressNextClickRef.current = true;
+      setMarkerOffset(nextOffset);
+      updateReviewOverride({ markerOffset: nextOffset });
+    }
+
+    if (buttonRef.current?.hasPointerCapture(event.pointerId)) {
+      buttonRef.current.releasePointerCapture(event.pointerId);
+    }
+
+    markerDragRef.current = null;
+    setIsDraggingMarker(false);
   };
 
   useEffect(() => {
@@ -139,43 +278,103 @@ export function RequirementMarker({
     onToggle();
   }, [isOpen, onToggle, selectedByReader, selectionRevision]);
 
-  return (
-    <div className={cn('absolute z-30', className)}>
-      <button
-        ref={buttonRef}
-        type="button"
-        title={`${displayLabel} ${requirement.title}`}
-        aria-label={`查看${displayLabel}业务逻辑`}
-        className={cn(
-          'flex h-5 min-w-7 items-center justify-center rounded-full border px-1.5 text-[10px] font-semibold shadow-sm transition-colors',
-          isNew && !isOpen && !selectedByReader
-            ? 'border-orange-300 bg-orange-50 text-orange-600 hover:border-orange-400 hover:bg-orange-100'
-            : isOpen || selectedByReader
-              ? 'border-emerald-500 bg-emerald-600 text-white'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100',
-        )}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (isOpen) {
-            handleClose();
-            return;
-          }
+  useEffect(() => {
+    setMarkerOffset(reviewOverride.markerOffset ?? { x: 0, y: 0 });
+  }, [reviewOverride.markerOffset]);
 
-          if (!isOpen && buttonRef.current) {
-            setPlacement(getCardPlacement(buttonRef.current.getBoundingClientRect()));
-          }
-          requirementReader?.setSelectedRequirement(requirement.id, requirement.anchorId);
-          onToggle();
-        }}
-      >
-        {displayNumber ?? getRequirementShortId(requirement.id)}
-      </button>
+  useEffect(
+    () => () => {
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current);
+      }
+      clearLongPressTimer();
+    },
+    [],
+  );
+
+  return (
+    <div
+      className={cn('absolute z-30', className)}
+      style={{ transform: `translate3d(${markerOffset.x}px, ${markerOffset.y}px, 0)` }}
+    >
+      {isEditingNumber ? (
+        <input
+          autoFocus
+          inputMode="numeric"
+          aria-label={`${displayLabel}编号`}
+          className="h-6 w-10 rounded-full border border-emerald-500 bg-white px-1 text-center text-[11px] font-bold text-emerald-700 shadow-md outline-none ring-2 ring-emerald-100"
+          value={numberDraft}
+          onChange={(event) => setNumberDraft(event.target.value.replace(/[^0-9]/g, ''))}
+          onBlur={commitDisplayNumber}
+          onClick={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              commitDisplayNumber();
+            }
+            if (event.key === 'Escape') {
+              setIsEditingNumber(false);
+            }
+          }}
+        />
+      ) : (
+        <button
+          ref={buttonRef}
+          type="button"
+          title={`${displayLabel} ${requirement.title}`}
+          aria-label={`查看${displayLabel}业务逻辑`}
+          className={cn(
+            'flex h-5 min-w-7 touch-none items-center justify-center rounded-full border px-1.5 text-[10px] font-semibold shadow-sm transition-colors',
+            isDraggingMarker && 'cursor-grabbing ring-2 ring-emerald-300',
+            !isDraggingMarker && 'cursor-grab',
+            isNew && !isOpen && !selectedByReader
+              ? 'border-orange-300 bg-orange-50 text-orange-600 hover:border-orange-400 hover:bg-orange-100'
+              : isOpen || selectedByReader
+                ? 'border-emerald-500 bg-emerald-600 text-white'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100',
+          )}
+          onPointerDown={handleMarkerPointerDown}
+          onPointerMove={handleMarkerPointerMove}
+          onPointerUp={finishMarkerDrag}
+          onPointerCancel={finishMarkerDrag}
+          onClick={(event) => {
+            event.stopPropagation();
+
+            if (suppressNextClickRef.current) {
+              suppressNextClickRef.current = false;
+              return;
+            }
+
+            if (clickTimerRef.current) {
+              clearTimeout(clickTimerRef.current);
+            }
+
+            clickTimerRef.current = setTimeout(openOrCloseMarker, SINGLE_CLICK_DELAY);
+          }}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (clickTimerRef.current) {
+              clearTimeout(clickTimerRef.current);
+              clickTimerRef.current = null;
+            }
+
+            setNumberDraft(String(resolvedDisplayNumber ?? getRequirementShortId(requirement.id)));
+            setIsEditingNumber(true);
+          }}
+        >
+          {resolvedDisplayNumber ?? getRequirementShortId(requirement.id)}
+        </button>
+      )}
       {isOpen && placement && typeof document !== 'undefined' &&
         createPortal(
           <RequirementFloatingCard
             requirement={requirement}
             placement={placement}
-            displayNumber={displayNumber}
+            displayNumber={resolvedDisplayNumber}
             onClose={handleClose}
           />,
           document.body,

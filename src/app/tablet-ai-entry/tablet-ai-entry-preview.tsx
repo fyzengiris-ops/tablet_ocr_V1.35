@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowDown,
   ArrowUp,
@@ -30,7 +31,17 @@ import {
   ZoomOut,
   X,
 } from 'lucide-react';
+import { RequirementMarker } from '@/components/prd/RequirementMarker';
+import type { RequirementDisplayNumberScopeItem } from '@/components/prd/requirement-review-storage';
+import { createRequirementDisplayNumberMap, createRequirementMap } from '@/components/prd/requirement-utils';
 import { getValidQuestionTypes } from '@/lib/ai-recognizer';
+import {
+  questionAnswerReviewStepRegistry,
+  tabletAiChatRecognizeHomeworkRegistry,
+  tabletCapturePageRegistry,
+  tabletQuestionContentSelectionPageRegistry,
+  tabletRecognitionModePageRegistry,
+} from '@/requirements';
 
 const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1200;
@@ -40,6 +51,7 @@ const MATERIAL_PAGE_MAX_HEIGHT = 830;
 const REVIEW_QUESTION_IMAGE_MAX_WIDTH = 760;
 
 type SelectedImage = {
+  id?: string;
   name: string;
   url: string;
   role?: ImageRole;
@@ -47,11 +59,15 @@ type SelectedImage = {
 
 type RecognitionMode = 'questions_only' | 'same_image_answer' | 'separate_answer';
 type ImageRole = 'question' | 'answer';
+type PrototypeSubjectType = 'math' | 'english';
+type PrototypeTargetStep = 'content' | 'review';
+type CaptureImageOrigin = 'processed' | 'supplement';
 type SubjectMode = 'single' | 'multiple';
 type OcrDetectStatus = 'loading' | 'ready' | 'failed';
 type CaptureCloseTarget = 'mode' | 'content' | 'upload' | null;
 type ReviewDisplayMode = 'recognition' | 'image';
 type SelectionOrientation = 'landscape' | 'portrait';
+type AddBoxInteractionMode = 'draw' | 'tap';
 type JoinPaperMode = 'by_type' | 'by_order';
 type ReviewQuestionType =
   | 'single_choice'
@@ -79,6 +95,121 @@ type TabletManualLinkTarget = {
   field: TabletManualLinkField;
   subQuestionId?: string;
 };
+type ImageModeSubQuestionInsertMenu = {
+  questionId: string;
+  subQuestionId: string;
+  placement?: 'before' | 'after';
+} | null;
+type PendingSubQuestionDeletion = {
+  mode: ReviewDisplayMode;
+  questionId: string;
+  subQuestionId: string;
+  source: 'recognition' | 'image';
+} | null;
+type RequirementMarkerRenderer = (
+  requirementId: string,
+  className: string,
+  displayNumber?: number,
+) => React.ReactNode;
+
+const tabletAiChatMarkerIds = [
+  'TABLET_AI_CHAT_RECOGNIZE-001',
+  'TABLET_AI_CHAT_SUBJECT_PROMPT-001',
+  'TABLET_AI_CHAT_INPUT_DISABLED-001',
+];
+
+const tabletRecognitionModeMarkerIds = [
+  'TABLET_RECOGNITION_MODE-001',
+  'TABLET_RECOGNITION_MODE-002',
+  'TABLET_RECOGNITION_MODE-003',
+  'TABLET_RECOGNITION_MODE-004',
+];
+
+const tabletCaptureMarkerIds = [
+  'TABLET_CAPTURE-001',
+  'TABLET_CAPTURE-002',
+  'TABLET_CAPTURE-003',
+  'TABLET_CAPTURE-004',
+  'TABLET_CAPTURE-005',
+  'TABLET_CAPTURE-006',
+  'TABLET_CAPTURE-007',
+  'TABLET_CAPTURE-008',
+  'TABLET_CAPTURE-009',
+];
+
+const tabletQuestionContentSelectionMarkerIds = [
+  'TABLET_QUESTION_CONTENT_SELECTION-001',
+  'TABLET_QUESTION_CONTENT_SELECTION-002',
+  'TABLET_QUESTION_CONTENT_SELECTION-003',
+  'TABLET_QUESTION_CONTENT_SELECTION-004',
+  'TABLET_QUESTION_CONTENT_SELECTION-005',
+  'TABLET_QUESTION_CONTENT_SELECTION-006',
+  'TABLET_QUESTION_CONTENT_SELECTION-007',
+  'TABLET_QUESTION_CONTENT_SELECTION-008',
+  'TABLET_QUESTION_CONTENT_SELECTION-009',
+  'TABLET_QUESTION_CONTENT_SELECTION-010',
+  'TABLET_QUESTION_CONTENT_SELECTION-011',
+  'TABLET_QUESTION_CONTENT_SELECTION-012',
+  'TABLET_QUESTION_CONTENT_SELECTION-013',
+  'TABLET_QUESTION_CONTENT_SELECTION-014',
+  'TABLET_QUESTION_CONTENT_SELECTION-015',
+  'TABLET_QUESTION_CONTENT_SELECTION-016',
+  'TABLET_QUESTION_CONTENT_SELECTION-017',
+  'TABLET_QUESTION_CONTENT_SELECTION-018',
+  'TABLET_QUESTION_CONTENT_SELECTION-021',
+  'TABLET_QUESTION_CONTENT_SELECTION-022',
+  'TABLET_QUESTION_CONTENT_SELECTION-023',
+];
+
+const tabletReviewImageMarkerIds = [
+  'TABLET_REVIEW_IMAGE-001',
+  'TABLET_REVIEW_IMAGE-002',
+  'TABLET_REVIEW_IMAGE-003',
+  'TABLET_REVIEW_IMAGE-004',
+  'TABLET_REVIEW_IMAGE-005',
+  'TABLET_REVIEW_IMAGE-006',
+  'TABLET_REVIEW_IMAGE-007',
+  'TABLET_REVIEW_IMAGE-008',
+  'TABLET_REVIEW_IMAGE-009',
+  'TABLET_REVIEW_IMAGE-010',
+  'TABLET_REVIEW_IMAGE-011',
+  'TABLET_REVIEW_IMAGE-012',
+  'TABLET_REVIEW_IMAGE-013',
+  'TABLET_REVIEW_IMAGE-014',
+  'TABLET_REVIEW_IMAGE-015',
+  'TABLET_REVIEW_IMAGE-016',
+  'TABLET_REVIEW_IMAGE-017',
+  'TABLET_REVIEW_IMAGE-018',
+];
+
+const tabletReviewRecognitionMarkerIds = [
+  'TABLET_REVIEW_RECOGNITION-002',
+  'TABLET_REVIEW_RECOGNITION-003',
+  'TABLET_REVIEW_RECOGNITION-004',
+  'TABLET_REVIEW_RECOGNITION-005',
+  'TABLET_REVIEW_RECOGNITION-006',
+];
+
+const tabletReviewQaImageMarkerIds = [
+  'TABLET_REVIEW_QA_IMAGE-001',
+  'TABLET_REVIEW_QA_IMAGE-004',
+  'TABLET_REVIEW_QA_IMAGE-005',
+  'TABLET_REVIEW_QA_IMAGE-006',
+  'TABLET_REVIEW_QA_IMAGE-007',
+  'TABLET_REVIEW_QA_IMAGE-008',
+  'TABLET_REVIEW_QA_IMAGE-009',
+  'TABLET_REVIEW_QA_IMAGE-010',
+  'TABLET_REVIEW_QA_IMAGE-013',
+  'TABLET_REVIEW_QA_IMAGE-015',
+  'TABLET_REVIEW_QA_IMAGE-016',
+  'TABLET_REVIEW_QA_IMAGE-022',
+  'TABLET_REVIEW_QA_IMAGE-018',
+  'TABLET_REVIEW_QA_IMAGE-002',
+];
+
+const tabletReviewQaRecognitionMarkerIds = [
+  'TABLET_REVIEW_QA_RECOGNITION-001',
+];
 
 type MaterialPage = SelectedImage & {
   pageNumber: number;
@@ -98,7 +229,7 @@ type RecognitionBox = {
   source: 'system' | 'manual';
 };
 
-type TabletConfirmAction = 'replace' | 'clear' | null;
+type TabletConfirmAction = 'back' | 'replace' | 'clear' | null;
 type CropRegion = { x: number; y: number; width: number; height: number };
 type DrawingBoxDraft = {
   pageNumber: number;
@@ -179,6 +310,18 @@ type ReviewAiMatchedQuestion = {
     optionCount?: number;
     blankCount?: number;
   }>;
+};
+
+type TabletPrototypeFixture = {
+  id: string;
+  subject: string;
+  mode: RecognitionMode;
+  targetStep: PrototypeTargetStep;
+  images: SelectedImage[];
+  pages: MaterialPage[];
+  boxes: RecognitionBox[];
+  reviewQuestions: ReviewQuestion[];
+  autoStartReview: boolean;
 };
 
 const SINGLE_SUBJECT = '高中数学';
@@ -341,12 +484,16 @@ function getDefaultOptionContent(questionType: ReviewQuestionType, letter: strin
   return '';
 }
 
+function getNormalizedOptionCount(questionType: ReviewQuestionType, count: number) {
+  return questionType === 'judge' ? 2 : Math.max(2, Math.min(26, count || 4));
+}
+
 function buildOptionContents(
   questionType: ReviewQuestionType,
   count: number,
   current: Record<string, string> = {},
 ) {
-  const optionCount = questionType === 'judge' ? 2 : Math.max(1, Math.min(12, count || 4));
+  const optionCount = getNormalizedOptionCount(questionType, count);
   return OPTION_LETTERS.slice(0, optionCount).split('').reduce<Record<string, string>>((contents, letter) => {
     contents[letter] = current[letter] ?? getDefaultOptionContent(questionType, letter);
     return contents;
@@ -655,23 +802,38 @@ const subjects = [
   '高中地理',
 ];
 
-function useCanvasScale() {
+function useCanvasScale(containerRef: RefObject<HTMLElement | null>) {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
     const updateScale = () => {
+      const container = containerRef.current;
+      const availableWidth = container?.clientWidth ?? window.innerWidth;
+      const availableHeight = container?.clientHeight ?? window.innerHeight;
       const nextScale = Math.min(
-        window.innerWidth / CANVAS_WIDTH,
-        window.innerHeight / CANVAS_HEIGHT,
+        availableWidth / CANVAS_WIDTH,
+        availableHeight / CANVAS_HEIGHT,
         1,
       );
       setScale(nextScale);
     };
 
     updateScale();
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' && containerRef.current
+        ? new ResizeObserver(updateScale)
+        : null;
+
+    if (containerRef.current && resizeObserver) {
+      resizeObserver.observe(containerRef.current);
+    }
+
     window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [containerRef]);
 
   return scale;
 }
@@ -756,20 +918,30 @@ function QuickButton({
   children,
   top,
   onClick,
+  marker,
+  anchorId,
 }: {
   children: React.ReactNode;
   top: number;
   onClick?: () => void;
+  marker?: React.ReactNode;
+  anchorId?: string;
 }) {
   return (
-    <button
-      className="absolute left-[88px] h-[60px] rounded-[8px] border border-[#dcdcdc] bg-white px-[14px] text-left text-[24px] leading-none text-[#2f2f2f] active:bg-[#f6f6f6]"
-      onClick={onClick}
+    <div
+      className="absolute left-[88px]"
+      data-req-anchor={anchorId}
       style={{ top }}
-      type="button"
     >
-      {children}
-    </button>
+      <button
+        className="h-[60px] rounded-[8px] border border-[#dcdcdc] bg-white px-[14px] text-left text-[24px] leading-none text-[#2f2f2f] active:bg-[#f6f6f6]"
+        onClick={onClick}
+        type="button"
+      >
+        {children}
+      </button>
+      {marker}
+    </div>
   );
 }
 
@@ -838,9 +1010,11 @@ function SelectedImageCard({ image }: { image: SelectedImage }) {
 
 function SubjectSelectionPanel({
   onSubjectSelect,
+  renderRequirementMarker,
   selectedSubject,
 }: {
   onSubjectSelect: (subject: string) => void;
+  renderRequirementMarker: RequirementMarkerRenderer;
   selectedSubject: string;
 }) {
   return (
@@ -848,8 +1022,12 @@ function SubjectSelectionPanel({
       <div className="absolute left-[22px] top-[345px]">
         <RobotMark />
       </div>
-      <div className="absolute left-[106px] top-[354px] h-[76px] w-[600px] rounded-[8px] bg-[#f7f8fb] px-[22px] py-[18px] text-[24px] leading-[40px] text-[#303030]">
+      <div
+        className="absolute left-[106px] top-[354px] h-[76px] w-[600px] rounded-[8px] bg-[#f7f8fb] px-[22px] py-[18px] text-[24px] leading-[40px] text-[#303030]"
+        data-req-anchor="tablet-ai-chat.subject-prompt"
+      >
         请先选择这次识别资料的学段学科
+        {renderRequirementMarker('TABLET_AI_CHAT_SUBJECT_PROMPT-001', '-right-3 -top-3')}
       </div>
       <div className="absolute left-[88px] top-[468px] grid w-[780px] grid-cols-4 gap-[16px]">
         {subjects.map((subject) => (
@@ -878,6 +1056,7 @@ function AiPanel({
   selectedSubject,
   userMode,
   onOpenUpload,
+  renderRequirementMarker,
 }: {
   onSubjectSelect: (subject: string) => void;
   isSubjectPickerOpen: boolean;
@@ -885,6 +1064,7 @@ function AiPanel({
   selectedSubject: string;
   userMode: SubjectMode;
   onOpenUpload: () => void;
+  renderRequirementMarker: RequirementMarkerRenderer;
 }) {
   return (
     <aside className="absolute left-[966px] top-0 h-[1200px] w-[954px] rounded-l-[12px] bg-white shadow-[-12px_0_24px_rgba(0,0,0,0.13)]">
@@ -909,7 +1089,9 @@ function AiPanel({
         </div>
       </div>
 
-      <div className="absolute right-[26px] top-[266px] flex h-[46px] rounded-full bg-[#eef0f2] p-[4px]">
+      <div
+        className="absolute right-[26px] top-[266px] flex h-[46px] rounded-full bg-[#eef0f2] p-[4px]"
+      >
         <button
           className={`h-[38px] rounded-full px-[18px] text-[18px] leading-none ${
             userMode === 'single' ? 'bg-white text-[#202124] shadow-sm' : 'text-[#777]'
@@ -933,19 +1115,29 @@ function AiPanel({
       {isSubjectPickerOpen ? (
         <SubjectSelectionPanel
           onSubjectSelect={onSubjectSelect}
+          renderRequirementMarker={renderRequirementMarker}
           selectedSubject={selectedSubject}
         />
       ) : (
         <>
           <QuickButton top={334}>帮我布置试卷作业</QuickButton>
-          <QuickButton top={412} onClick={onOpenUpload}>
+          <QuickButton
+            anchorId="tablet-ai-chat.recognize-homework-button"
+            marker={renderRequirementMarker('TABLET_AI_CHAT_RECOGNIZE-001', '-right-3 -top-3')}
+            top={412}
+            onClick={onOpenUpload}
+          >
             帮我识别作业资料
           </QuickButton>
           <QuickButton top={485}>帮我布置听力作业</QuickButton>
         </>
       )}
 
-      <div className="absolute bottom-[24px] left-[26px] h-[155px] w-[902px] rounded-[16px] border border-[#d3d3d3] bg-[#f4f4f4] text-[#b9b9b9] shadow-[0_0_0_1px_rgba(0,0,0,0.02)]">
+      <div
+        className="absolute bottom-[24px] left-[26px] h-[155px] w-[902px] rounded-[16px] border border-[#d3d3d3] bg-[#f4f4f4] text-[#b9b9b9] shadow-[0_0_0_1px_rgba(0,0,0,0.02)]"
+        data-req-anchor="tablet-ai-chat.input-disabled"
+      >
+        {renderRequirementMarker('TABLET_AI_CHAT_INPUT_DISABLED-001', '-right-3 -top-3')}
         <div className="absolute left-[20px] top-[22px] flex items-center gap-[18px]">
           <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full border-[2px] border-[#222] bg-white opacity-45">
             <Mic2 className="h-[24px] w-[24px] text-[#222]" />
@@ -1204,19 +1396,29 @@ function ModeDiagram({ mode }: { mode: RecognitionMode }) {
 function RecognitionModeDialog({
   onClose,
   onModeSelect,
+  onPrototypeStart,
+  renderRequirementMarker,
 }: {
   onClose: () => void;
   onModeSelect: (mode: RecognitionMode) => void;
+  onPrototypeStart: (subjectType: PrototypeSubjectType, mode: RecognitionMode, targetStep: PrototypeTargetStep) => void;
+  renderRequirementMarker: RequirementMarkerRenderer;
 }) {
+  const [prototypeMode, setPrototypeMode] = useState<RecognitionMode>('questions_only');
+  const [prototypeSubjectType, setPrototypeSubjectType] = useState<PrototypeSubjectType>('math');
+  const [prototypeTargetStep, setPrototypeTargetStep] = useState<PrototypeTargetStep>('review');
+
   return (
     <div className="absolute inset-0 z-20 bg-[#f0f4f7]">
       <header className="absolute left-0 top-0 h-[96px] w-full border-b border-[#e8e8e8] bg-white">
         <button
+          data-req-anchor="tablet-recognition-mode.header-back"
           aria-label="返回"
           className="absolute left-[34px] top-[26px] flex h-[48px] items-center gap-[8px] rounded-[8px] pr-[16px] text-[#202124] active:bg-[#f4f4f4]"
           onClick={onClose}
           type="button"
         >
+          {renderRequirementMarker('TABLET_RECOGNITION_MODE-001', 'right-[-18px] top-[-10px]')}
           <ChevronLeft className="h-[34px] w-[34px] stroke-[2.3]" />
           <span className="text-[30px] font-normal leading-none">选择识别方式</span>
           <span className="text-[21px] font-normal leading-none text-[#7b838c]">
@@ -1245,15 +1447,29 @@ function RecognitionModeDialog({
                 ? FileText
                 : mode.id === 'same_image_answer'
                   ? Images
-                  : LayersIcon;
+                : LayersIcon;
+            const requirementId =
+              mode.id === 'questions_only'
+                ? 'TABLET_RECOGNITION_MODE-002'
+                : mode.id === 'same_image_answer'
+                  ? 'TABLET_RECOGNITION_MODE-003'
+                  : 'TABLET_RECOGNITION_MODE-004';
+            const anchorId =
+              mode.id === 'questions_only'
+                ? 'tablet-recognition-mode.questions-only-card'
+                : mode.id === 'same_image_answer'
+                  ? 'tablet-recognition-mode.same-image-answer-card'
+                  : 'tablet-recognition-mode.separate-answer-card';
 
             return (
               <button
                 key={mode.id}
-                className="group flex h-[600px] cursor-pointer flex-col rounded-[16px] border-2 border-white bg-white px-[34px] pb-[32px] pt-[36px] text-left shadow-[0_12px_34px_rgba(31,44,58,0.10)] transition-all active:scale-[0.995] active:border-[#58cf9a] active:bg-[#f3fbf7]"
+                data-req-anchor={anchorId}
+                className="group relative flex h-[600px] cursor-pointer flex-col rounded-[16px] border-2 border-white bg-white px-[34px] pb-[32px] pt-[36px] text-left shadow-[0_12px_34px_rgba(31,44,58,0.10)] transition-all active:scale-[0.995] active:border-[#58cf9a] active:bg-[#f3fbf7]"
                 onClick={() => onModeSelect(mode.id)}
                 type="button"
               >
+                {renderRequirementMarker(requirementId, 'right-[18px] top-[18px]')}
                 <div className="mb-[30px] flex items-start gap-[18px]">
                   <div className={`flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-[14px] ${iconColor}`}>
                     <Icon className="h-[28px] w-[28px]" />
@@ -1282,6 +1498,63 @@ function RecognitionModeDialog({
             );
           })}
         </div>
+
+        <section
+          className="absolute left-[66px] right-[66px] rounded-[10px] border border-[#dfe6ec] bg-white/42 px-[30px] py-[24px] shadow-[0_6px_18px_rgba(31,44,58,0.04)]"
+          style={{ top: 860 }}
+        >
+          <div className="flex items-center justify-between gap-[36px]">
+            <div className="min-w-0">
+              <div className="text-[20px] font-medium leading-none text-[#59636d]">原型快捷查看</div>
+              <div className="mt-[10px] text-[17px] leading-none text-[#9aa3ab]">
+                使用内置示例资料快速进入后续页面，仅用于原型演示
+              </div>
+            </div>
+            <div className="flex shrink-0 items-end gap-[22px]">
+              <label className="grid gap-[8px] text-[16px] leading-none text-[#7c8791]">
+                识别方式
+                <select
+                  className="h-[42px] w-[248px] rounded-[6px] border border-[#d6dee5] bg-white px-[12px] text-[18px] text-[#37414b]"
+                  onChange={(event) => setPrototypeMode(event.target.value as RecognitionMode)}
+                  value={prototypeMode}
+                >
+                  <option value="questions_only">仅识别题目</option>
+                  <option value="same_image_answer">题目+答案 · 一题一答</option>
+                  <option value="separate_answer">题目+答案 · 题答分页</option>
+                </select>
+              </label>
+              <label className="grid gap-[8px] text-[16px] leading-none text-[#7c8791]">
+                资料类型
+                <select
+                  className="h-[42px] w-[206px] rounded-[6px] border border-[#d6dee5] bg-white px-[12px] text-[18px] text-[#37414b]"
+                  onChange={(event) => setPrototypeSubjectType(event.target.value as PrototypeSubjectType)}
+                  value={prototypeSubjectType}
+                >
+                  <option value="math">数学常见题</option>
+                  <option value="english">英语常见题</option>
+                </select>
+              </label>
+              <label className="grid gap-[8px] text-[16px] leading-none text-[#7c8791]">
+                跳转目标
+                <select
+                  className="h-[42px] w-[234px] rounded-[6px] border border-[#d6dee5] bg-white px-[12px] text-[18px] text-[#37414b]"
+                  onChange={(event) => setPrototypeTargetStep(event.target.value as PrototypeTargetStep)}
+                  value={prototypeTargetStep}
+                >
+                  <option value="content">选择识别内容页</option>
+                  <option value="review">核对识别结果页</option>
+                </select>
+              </label>
+              <button
+                className="h-[42px] rounded-[6px] border border-[#bfcbd5] bg-white px-[28px] text-[18px] font-medium leading-none text-[#53606b] active:bg-[#f5f7f8]"
+                onClick={() => onPrototypeStart(prototypeSubjectType, prototypeMode, prototypeTargetStep)}
+                type="button"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
@@ -1312,12 +1585,35 @@ function SourceCard({
   );
 }
 
+let mockCaptureSequence = 0;
+let selectedImageSequence = 0;
+const imageRuntimeKeyMap = new WeakMap<SelectedImage, string>();
+
+function createSelectedImageId(prefix = 'image') {
+  selectedImageSequence += 1;
+  return `${prefix}-${Date.now()}-${selectedImageSequence}`;
+}
+
+function getImageKey(image: SelectedImage) {
+  if (image.id) return image.id;
+
+  const existingKey = imageRuntimeKeyMap.get(image);
+  if (existingKey) return existingKey;
+
+  const nextKey = createSelectedImageId('legacy-image');
+  imageRuntimeKeyMap.set(image, nextKey);
+  return nextKey;
+}
+
 function createMockCapture(role: ImageRole | undefined, index: number, crop?: CropRegion): SelectedImage {
   const roleText = role === 'question' ? '题目图片' : role === 'answer' ? '答案图片' : '作业图片';
   const accent = role === 'answer' ? '#6f94f7' : '#58cf9a';
   const cropText = crop ? `裁剪 ${Math.round(crop.width)}×${Math.round(crop.height)}` : '';
+  mockCaptureSequence += 1;
+  const captureToken = `mock-capture-${mockCaptureSequence}`;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220">
+      <desc>${captureToken}</desc>
       <rect width="320" height="220" rx="18" fill="#f7fafc"/>
       <rect x="28" y="24" width="264" height="172" rx="12" fill="#ffffff" stroke="#d9e1e8" stroke-width="2"/>
       <rect x="54" y="58" width="118" height="20" rx="10" fill="${accent}"/>
@@ -1330,9 +1626,305 @@ function createMockCapture(role: ImageRole | undefined, index: number, crop?: Cr
   `;
 
   return {
+    id: createSelectedImageId('mock-capture'),
     name: `${roleText}${index}.jpg`,
     role,
     url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+  };
+}
+
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function createPrototypePageImage({
+  badge,
+  lines,
+  role,
+  title,
+}: {
+  badge: string;
+  lines: string[];
+  role?: ImageRole;
+  title: string;
+}) {
+  const accent = role === 'answer' ? '#6f94f7' : '#23bfb2';
+  const lineNodes = lines.slice(0, 18).map((line, index) => {
+    const y = 128 + index * 44;
+    return `<text x="72" y="${y}" fill="#202124" font-size="24" font-family="Arial, sans-serif">${escapeSvgText(line)}</text>`;
+  }).join('');
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="960" height="1280" viewBox="0 0 960 1280">
+      <rect width="960" height="1280" fill="#ffffff"/>
+      <rect x="48" y="42" width="864" height="1196" rx="18" fill="#ffffff" stroke="#dfe4ea" stroke-width="3"/>
+      <rect x="72" y="70" width="138" height="42" rx="8" fill="${accent}"/>
+      <text x="92" y="99" fill="#ffffff" font-size="22" font-weight="700" font-family="Arial, sans-serif">${escapeSvgText(badge)}</text>
+      <text x="236" y="101" fill="#202124" font-size="30" font-weight="700" font-family="Arial, sans-serif">${escapeSvgText(title)}</text>
+      ${lineNodes}
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function createPrototypeSelectedImage(
+  subjectType: PrototypeSubjectType,
+  mode: RecognitionMode,
+  index: number,
+  role: ImageRole | undefined,
+  url: string,
+): SelectedImage {
+  const subjectName = subjectType === 'math' ? '数学常见题' : '英语常见题';
+  const modeName = mode === 'questions_only' ? '仅题目' : mode === 'same_image_answer' ? '一题一答' : '题答分页';
+  const roleName = role === 'answer' ? '答案' : '题目';
+
+  return {
+    id: `prototype-${subjectType}-${mode}-${roleName}-${index}`,
+    name: `${subjectName}-${modeName}-${roleName}${index}.png`,
+    role,
+    url,
+  };
+}
+
+function createPrototypeMaterialPage(image: SelectedImage, pageNumber: number): MaterialPage {
+  return {
+    ...image,
+    imageData: image.url,
+    naturalHeight: 1280,
+    naturalWidth: 960,
+    pageNumber,
+  };
+}
+
+const prototypeContentBySubject: Record<PrototypeSubjectType, {
+  subject: string;
+  questionsOnlyLines: string[][];
+  sameFileLines: string[][];
+  separateQuestionLines: string[][];
+  separateAnswerLines: string[][];
+}> = {
+  math: {
+    subject: '高中数学',
+    questionsOnlyLines: [
+      ['一、选择题（每题 5 分）', '1. 下列数据最符合生活实际的是（ ）', 'A. 中学生身高约 160mm', 'B. 人体正常体温约 42℃', 'C. 家用台灯正常工作电流约 1A', 'D. 人步行速度约 1.1m/s'],
+      ['二、填空题（每空 2 分）', '6. 弹奏吉他时，琴弦______发声。', '7. 光在真空中的传播速度为______m/s。', '8. 一个质量为 50kg 的中学生，重力为______N。', '9. 潜水艇下潜时，浮力______，压强______。'],
+      ['三、解答题（共 40 分）', '11. 一个重为 600N 的物体，用 200N 的水平拉力匀速移动 5m。', '（1）求摩擦力大小；', '（2）求拉力做的功；', '（3）求拉力的功率。', '12. 金属块温度从 90℃ 降低到 40℃，放出热量 4.5×10⁴J。'],
+    ],
+    sameFileLines: [
+      ['5.（8分）已知 (a+b)²=a²+2ab+b²，(a-b)²=a²-2ab+b²。', '（1）已知 a+b=9，a-b=5，求 ab 的值。', '【答案】ab=14', '【解析】由两式相减得 4ab=56，所以 ab=14。', '（2）若 a-b=m，ab=n，用含 m,n 的代数式表示 a²+b²。', '【答案】a²+b²=m²+2n'],
+      ['1.（3分）若 x²+mx-12 可分解为 (x-3)(x+4)，则 m 的值为（ ）', 'A. 1  B. -1  C. -4  D. 2', '【答案】A', '【解析】(x-3)(x+4)=x²+x-12，所以 m=1。', '2. 若 36x²+kx+16 可以写成完全平方形式，则 k=（ ）', '【答案】D'],
+      ['3.（4分）因式分解：ab³-9ab=____。', '【答案】ab(b+3)(b-3)', '【解析】先提公因式 ab，再用平方差公式。', '4.（4分）分解因式：4m-4=____。', '【答案】4(m-1)', '【解析】提取公因式 4 即可。'],
+    ],
+    separateQuestionLines: [
+      ['一、选择题（每题 5 分）', '1. 下列数据最符合生活实际的是（ ）', 'A. 中学生身高约 160mm', 'B. 人体正常体温约 42℃', 'C. 家用台灯正常工作电流约 1A', 'D. 人步行速度约 1.1m/s'],
+      ['二、填空题（每空 2 分）', '6. 弹奏吉他时，琴弦______发声。', '7. 光在真空中的传播速度为______m/s。', '8. 一个质量为 50kg 的中学生，重力为______N。', '9. 潜水艇下潜时，浮力______，压强______。'],
+      ['三、解答题（共 40 分）', '11. 一个重为 600N 的物体，用 200N 的水平拉力匀速移动 5m。', '（1）求摩擦力大小；', '（2）求拉力做的功；', '（3）求拉力的功率。'],
+    ],
+    separateAnswerLines: [
+      ['一、选择题', '1. 答案：D', '解析：人步行速度约 1.1m/s，符合实际。', '2. 答案：C', '3. 答案：C', '4. 答案：C'],
+      ['二、填空题', '6. 振动；空气', '7. 3×10⁸；漫', '8. 500；竖直向下', '9. 不变；变大', '10. 横截面积；无关'],
+      ['三、解答题', '11.（1）答案：200N', '（2）答案：1000J', '（3）答案：100W', '12.（1）答案：50℃', '（2）答案：1.8×10³J/(kg·℃)'],
+    ],
+  },
+  english: {
+    subject: '高中英语',
+    questionsOnlyLines: [
+      ['Passage 1', 'Hello, everyone! Welcome to our school library.', 'Before you enter, please follow the rules.', '1. How many rules are mentioned in the passage?', 'A. Two  B. Three  C. Four  D. Five', '2. What can you do in the library?', 'A. Talk loudly  B. Borrow books  C. Eat food  D. Listen to music'],
+      ['四、完形填空（共 15 小题）', 'Dear John, I am writing to tell you something about my school life.', 'There ____1____ about 2,000 students and 150 teachers in our school.', 'We go to school ____2____ Monday to Friday.', 'Classes begin ____3____ eight o’clock in the morning.', '1. A. is  B. are  C. has  D. have', '2. A. on  B. in  C. from  D. at'],
+    ],
+    sameFileLines: [
+      ['阅读理解（总分 10 分）', 'When your pen is broken, what do you do with these things?', 'All kinds of rubbish need to be sorted separately.', '(1) How should we deal with all kinds of rubbish?', 'A. We can throw them all into one bin.', 'B. We can sort them separately.', '【答案】(1) B  (2) A  (3) C  (4) B  (5) C'],
+      ['完型填空（总分 10 分）', 'Wayne Lotter spent 25 years ____1____ the wild animals.', 'He was always thinking about how ____2____ people from killing elephants.', '(1) A. protect  B. protected  C. to protect  D. protecting', '【答案】(1) D  (2) B  (3) C  (4) C  (5) A', '【解析】spend + 时间 + doing sth，故选 D。'],
+    ],
+    separateQuestionLines: [
+      ['完型填空', 'My English teacher, Miss Wang, is very ____7____.', 'She teaches us new words and grammar in a fun way.', 'Mr. Li is very ____9____ and organized.', '7. A. strict  B. amusing  C. nervous  D. boring', '8. A. boring  B. difficult  C. interesting  D. tiring', '9. A. shy  B. energetic  C. disorganized  D. bored'],
+      ['Space Hotel Promises Guests A Truly Out-Of-This World Vacation', 'Aurora Station will circle the planet once every 90 minutes.', '(1) What can be learned about Aurora Station?', 'A. People can visit it now.', 'B. Its construction will last for about 5 years.', 'C. It can only hold four people in this station.', 'D. It looks like a pill with the size of a small plane.'],
+    ],
+    separateAnswerLines: [
+      ['答案：7-11 BCBCA  12-16 ADBAA', '7. 答案：B', '解析：后文提到老师笑容灿烂、上课有趣，amusing 符合语境。', '8. 答案：C', '解析：老师用有趣的方式教学，让课堂变得 interesting。', '9. 答案：B', '解析：energetic 与 organized 并列，符合老师形象。'],
+      ['【答案】(1) D  (2) C  (3) A  (4) B', '【解析】', '1. 根据文中 the pill-shaped space station 可知答案为 D。', '2. 根据 guests can enjoy fantastic auroras 可知答案为 C。'],
+    ],
+  },
+};
+
+const prototypeQuestionSpecs: Record<PrototypeSubjectType, Array<{
+  answer?: string;
+  analysis?: string;
+  blankAnswers?: string[];
+  content: string;
+  optionContents?: Record<string, string>;
+  pageIndex: number;
+  questionType: ReviewQuestionType;
+}>> = {
+  math: [
+    {
+      answer: 'D',
+      analysis: '人步行速度约 1.1m/s，符合生活实际。',
+      content: '1. 下列数据最符合生活实际的是（ ）',
+      optionContents: { A: '中学生身高约 160mm', B: '人体正常体温约 42℃', C: '家用台灯正常工作电流约 1A', D: '人步行速度约 1.1m/s' },
+      pageIndex: 0,
+      questionType: 'single_choice',
+    },
+    {
+      answer: '振动；空气',
+      analysis: '声音由物体振动产生，通过空气传播到人耳。',
+      blankAnswers: ['振动', '空气'],
+      content: '6. 弹奏吉他时，琴弦______发声，琴声通过______传入人耳。',
+      pageIndex: 1,
+      questionType: 'fill_blank',
+    },
+    {
+      answer: '200N；1000J；100W',
+      analysis: '物体匀速直线运动时拉力与摩擦力平衡；W=Fs，P=W/t。',
+      content: '11. 一个重为 600N 的物体，用 200N 的水平拉力匀速移动 5m，用时 10s。求摩擦力、拉力做功和功率。',
+      pageIndex: 2,
+      questionType: 'solution',
+    },
+  ],
+  english: [
+    {
+      answer: 'B',
+      analysis: 'The passage says rubbish should be sorted separately.',
+      content: '1. How should we deal with all kinds of rubbish?',
+      optionContents: { A: 'We can throw them all into one bin.', B: 'We can sort them separately.', C: 'We can throw them away freely.', D: 'We can reuse them all.' },
+      pageIndex: 0,
+      questionType: 'reading_comprehension',
+    },
+    {
+      answer: 'D；B；C；C；A',
+      analysis: 'Use the context and common grammar patterns to choose the answers.',
+      content: 'Wayne Lotter spent 25 years ____1____ the wild animals. He was always thinking about how ____2____ people from killing elephants.',
+      pageIndex: 1,
+      questionType: 'cloze',
+    },
+    {
+      answer: 'D',
+      analysis: 'The station is described as pill-shaped and about the size of a private jet cabin.',
+      content: '3. What can be learned about Aurora Station?',
+      optionContents: { A: 'People can visit it now.', B: 'Its construction will last for about 5 years.', C: 'It can only hold four people in this station.', D: 'It looks like a pill with the size of a small plane.' },
+      pageIndex: 1,
+      questionType: 'reading_comprehension',
+    },
+  ],
+};
+
+function createPrototypeBoxes(subjectType: PrototypeSubjectType, pageCount: number) {
+  const layouts = subjectType === 'math'
+    ? [
+        { pageNumber: 1, x: 8, y: 12, width: 82, height: 22 },
+        { pageNumber: Math.min(2, pageCount), x: 8, y: 18, width: 82, height: 28 },
+        { pageNumber: Math.min(3, pageCount), x: 8, y: 18, width: 82, height: 30 },
+      ]
+    : [
+        { pageNumber: 1, x: 7, y: 9, width: 84, height: 34 },
+        { pageNumber: Math.min(2, pageCount), x: 7, y: 10, width: 84, height: 38 },
+        { pageNumber: Math.min(2, pageCount), x: 7, y: 54, width: 84, height: 26 },
+      ];
+
+  return layouts.map((layout, index) => ({
+    id: `prototype-box-${subjectType}-${index + 1}`,
+    selected: true,
+    source: 'system' as const,
+    ...layout,
+  }));
+}
+
+function createPrototypeReviewQuestions(
+  subjectType: PrototypeSubjectType,
+  boxes: RecognitionBox[],
+  pages: MaterialPage[],
+  mode: RecognitionMode,
+) {
+  const specs = prototypeQuestionSpecs[subjectType];
+
+  return boxes.map((box, index): ReviewQuestion => {
+    const spec = specs[index % specs.length];
+    const page = pages[Math.min(spec.pageIndex, pages.length - 1)] || pages[0];
+    const optionCount = isChoiceLikeQuestionType(spec.questionType)
+      ? Math.max(4, Object.keys(spec.optionContents || {}).length || 4)
+      : 4;
+    const blankCount = spec.blankAnswers?.length || (spec.questionType === 'cloze' ? 5 : 1);
+    const subQuestions = spec.questionType === 'reading_comprehension'
+      ? [0, 1].map((subIndex) => createReviewSubQuestion(box.id, subIndex, 'single_choice', { optionCount: 4 }))
+      : spec.questionType === 'cloze'
+        ? Array.from({ length: blankCount }, (_, subIndex) => createReviewSubQuestion(box.id, subIndex, 'single_choice', { optionCount: 4 }))
+        : [];
+
+    return {
+      id: box.id,
+      analysis: mode === 'questions_only' ? '' : (spec.analysis || ''),
+      answer: mode === 'questions_only' ? '' : (spec.answer || ''),
+      blankAnswers: mode === 'questions_only' ? createBlankAnswers(blankCount) : createBlankAnswers(blankCount, spec.blankAnswers),
+      blankCount,
+      content: spec.content,
+      crop: { x: box.x, y: box.y, width: box.width, height: box.height },
+      croppedImageData: page?.imageData,
+      croppedImageHeight: page?.naturalHeight,
+      croppedImageWidth: page?.naturalWidth,
+      optionContents: isChoiceLikeQuestionType(spec.questionType)
+        ? buildOptionContents(spec.questionType, optionCount, spec.optionContents || {})
+        : {},
+      optionCount,
+      pageNumber: box.pageNumber,
+      questionType: spec.questionType,
+      questionTypeStatus: 'recognized',
+      subQuestions,
+      viewMode: 'recognition',
+    };
+  });
+}
+
+function createTabletPrototypeFixture(
+  subjectType: PrototypeSubjectType,
+  mode: RecognitionMode,
+  targetStep: PrototypeTargetStep,
+): TabletPrototypeFixture {
+  const content = prototypeContentBySubject[subjectType];
+  const linesByMode = mode === 'questions_only'
+    ? content.questionsOnlyLines
+    : mode === 'same_image_answer'
+      ? content.sameFileLines
+      : content.separateQuestionLines;
+  const selectedImages = linesByMode.map((lines, index) => {
+    const url = createPrototypePageImage({
+      badge: mode === 'same_image_answer' ? '题答同页' : '题目',
+      lines,
+      role: mode === 'separate_answer' ? 'question' : undefined,
+      title: `${content.subject}资料 ${index + 1}`,
+    });
+    return createPrototypeSelectedImage(subjectType, mode, index + 1, mode === 'separate_answer' ? 'question' : undefined, url);
+  });
+  const answerImages = mode === 'separate_answer'
+    ? content.separateAnswerLines.map((lines, index) => {
+        const url = createPrototypePageImage({
+          badge: '答案',
+          lines,
+          role: 'answer',
+          title: `${content.subject}答案 ${index + 1}`,
+        });
+        return createPrototypeSelectedImage(subjectType, mode, index + 1, 'answer', url);
+      })
+    : [];
+  const images = [...selectedImages, ...answerImages];
+  const pages = images.map((image, index) => createPrototypeMaterialPage(image, index + 1));
+  const questionPageCount = mode === 'separate_answer' ? selectedImages.length : pages.length;
+  const boxes = createPrototypeBoxes(subjectType, questionPageCount);
+  const reviewQuestions = createPrototypeReviewQuestions(subjectType, boxes, pages, mode);
+
+  return {
+    autoStartReview: targetStep === 'review',
+    boxes,
+    id: `prototype-${subjectType}-${mode}-${targetStep}`,
+    images,
+    mode,
+    pages,
+    reviewQuestions,
+    subject: content.subject,
+    targetStep,
   };
 }
 
@@ -1354,6 +1946,7 @@ function appendFilesAsImages(files: File[], role?: ImageRole): SelectedImage[] {
   const rolePrefix = role === 'question' ? '题目' : role === 'answer' ? '答案' : '';
 
   return files.map((file, index) => ({
+    id: createSelectedImageId('upload'),
     name: rolePrefix ? `${rolePrefix}_${file.name || index + 1}` : file.name,
     role,
     url: URL.createObjectURL(file),
@@ -1404,6 +1997,51 @@ function expandSystemBoxForSelectIcon(box: RecognitionBox, page: MaterialPage | 
     x: nextX,
     width: clampPercent(rightEdge - nextX, 3, 100 - nextX),
   };
+}
+
+function createRequirementDisplayNumberScope(
+  markerIds: string[],
+  displayNumbersByRequirementId: Map<string, number>,
+): RequirementDisplayNumberScopeItem[] {
+  return markerIds.map((requirementId, index) => ({
+    requirementId,
+    displayNumber: displayNumbersByRequirementId.get(requirementId) ?? index + 1,
+  }));
+}
+
+function reorderImagesByUrl(images: SelectedImage[], fromUrl: string, toUrl: string) {
+  const fromIndex = images.findIndex((image) => getImageKey(image) === fromUrl);
+  const toIndex = images.findIndex((image) => getImageKey(image) === toUrl);
+
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return images;
+
+  const nextImages = [...images];
+  const [movedImage] = nextImages.splice(fromIndex, 1);
+  nextImages.splice(toIndex, 0, movedImage);
+  return nextImages;
+}
+
+function mergeSupplementImagesByOrder(
+  order: string[],
+  processedImages: SelectedImage[],
+  supplementImages: SelectedImage[],
+) {
+  const imageMap = new Map<string, SelectedImage>();
+  [...processedImages, ...supplementImages].forEach((image) => {
+    imageMap.set(getImageKey(image), image);
+  });
+
+  const orderedImages = order
+    .map((url) => imageMap.get(url))
+    .filter((image): image is SelectedImage => Boolean(image));
+  const orderedUrlSet = new Set(orderedImages.map((image) => getImageKey(image)));
+  const missingImages = [...processedImages, ...supplementImages].filter((image) => !orderedUrlSet.has(getImageKey(image)));
+
+  return [...orderedImages, ...missingImages];
+}
+
+function getImageOrderSignature(images: SelectedImage[]) {
+  return images.map((image) => getImageKey(image)).join('|');
 }
 
 function readBlobAsDataUrl(blob: Blob) {
@@ -1638,38 +2276,51 @@ function CameraGrid() {
 
 function CaptureImageManager({
   answerImages,
+  getImageOrigin,
+  isSupplementMode = false,
   mode,
+  onAnswerReorder,
   onClose,
   onDelete,
   onMove,
   onQuestionReorder,
+  onSelectedReorder,
   questionImages,
+  renderRequirementMarker,
   selectedImages,
+  supplementImageKeys,
 }: {
   answerImages: SelectedImage[];
+  getImageOrigin?: (image: SelectedImage) => CaptureImageOrigin;
+  isSupplementMode?: boolean;
   mode: RecognitionMode | '';
+  onAnswerReorder: (fromUrl: string, toUrl: string) => void;
   onClose: () => void;
   onDelete: (image: SelectedImage, role?: ImageRole) => void;
   onMove: (image: SelectedImage, fromRole: ImageRole, toRole: ImageRole) => void;
   onQuestionReorder: (fromUrl: string, toUrl: string) => void;
+  onSelectedReorder?: (fromUrl: string, toUrl: string) => void;
   questionImages: SelectedImage[];
+  renderRequirementMarker: RequirementMarkerRenderer;
   selectedImages: SelectedImage[];
+  supplementImageKeys?: ReadonlySet<string>;
 }) {
   const isSeparateMode = mode === 'separate_answer';
   const [previewImage, setPreviewImage] = useState<SelectedImage | null>(null);
-  const [draggingQuestionUrl, setDraggingQuestionUrl] = useState<string | null>(null);
-  const [dragOverQuestionUrl, setDragOverQuestionUrl] = useState<string | null>(null);
-  const draggingQuestionUrlRef = useRef<string | null>(null);
-  const lastQuestionReorderTargetUrlRef = useRef<string | null>(null);
+  const [draggingImageUrl, setDraggingImageUrl] = useState<string | null>(null);
+  const [dragOverImageUrl, setDragOverImageUrl] = useState<string | null>(null);
+  const draggingImageUrlRef = useRef<string | null>(null);
+  const lastReorderTargetUrlRef = useRef<string | null>(null);
+  const dragGroupRef = useRef<ImageRole | 'selected' | null>(null);
 
-  const findQuestionDragTargetUrl = (clientX: number, clientY: number) => {
+  const findDragTargetUrl = (clientX: number, clientY: number) => {
     const directTarget = document
       .elementFromPoint(clientX, clientY)
-      ?.closest<HTMLElement>('[data-question-image-url]');
+      ?.closest<HTMLElement>('[data-sortable-image-url]');
 
-    if (directTarget?.dataset.questionImageUrl) return directTarget.dataset.questionImageUrl;
+    if (directTarget?.dataset.sortableImageUrl) return directTarget.dataset.sortableImageUrl;
 
-    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-question-image-url]'));
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-sortable-image-url]'));
     if (rows.length === 0) return undefined;
 
     return rows.reduce(
@@ -1677,75 +2328,97 @@ function CaptureImageManager({
         const rect = row.getBoundingClientRect();
         const distance = Math.abs(clientY - (rect.top + rect.height / 2));
         return distance < closest.distance
-          ? { distance, url: row.dataset.questionImageUrl }
+          ? { distance, url: row.dataset.sortableImageUrl }
           : closest;
       },
       { distance: Number.POSITIVE_INFINITY, url: undefined as string | undefined },
     ).url;
   };
 
-  const handleQuestionDragStart = (url: string, event: ReactPointerEvent<HTMLElement>) => {
+  const handleDragStart = (url: string, group: ImageRole | 'selected', event: ReactPointerEvent<HTMLElement>) => {
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    draggingQuestionUrlRef.current = url;
-    lastQuestionReorderTargetUrlRef.current = url;
-    setDraggingQuestionUrl(url);
-    setDragOverQuestionUrl(url);
+    draggingImageUrlRef.current = url;
+    lastReorderTargetUrlRef.current = url;
+    dragGroupRef.current = group;
+    setDraggingImageUrl(url);
+    setDragOverImageUrl(url);
   };
 
-  const handleQuestionDragEnd = () => {
-    draggingQuestionUrlRef.current = null;
-    lastQuestionReorderTargetUrlRef.current = null;
-    setDraggingQuestionUrl(null);
-    setDragOverQuestionUrl(null);
+  const handleDragEnd = () => {
+    draggingImageUrlRef.current = null;
+    lastReorderTargetUrlRef.current = null;
+    dragGroupRef.current = null;
+    setDraggingImageUrl(null);
+    setDragOverImageUrl(null);
   };
 
   useEffect(() => {
-    if (!draggingQuestionUrl) return undefined;
+    if (!draggingImageUrl) return undefined;
 
     const handlePointerMove = (event: PointerEvent) => {
       event.preventDefault();
-      const fromUrl = draggingQuestionUrlRef.current;
+      const fromUrl = draggingImageUrlRef.current;
       if (!fromUrl) return;
 
-      const targetUrl = findQuestionDragTargetUrl(event.clientX, event.clientY);
+      const targetUrl = findDragTargetUrl(event.clientX, event.clientY);
       if (!targetUrl || targetUrl === fromUrl) return;
-      if (targetUrl === lastQuestionReorderTargetUrlRef.current) return;
+      if (targetUrl === lastReorderTargetUrlRef.current) return;
 
-      lastQuestionReorderTargetUrlRef.current = targetUrl;
-      setDragOverQuestionUrl(targetUrl);
+      lastReorderTargetUrlRef.current = targetUrl;
+      setDragOverImageUrl(targetUrl);
+
+      if (dragGroupRef.current === 'selected') {
+        onSelectedReorder?.(fromUrl, targetUrl);
+        return;
+      }
+
+      if (dragGroupRef.current === 'answer') {
+        onAnswerReorder(fromUrl, targetUrl);
+        return;
+      }
+
       onQuestionReorder(fromUrl, targetUrl);
     };
 
     window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handleQuestionDragEnd);
-    window.addEventListener('pointercancel', handleQuestionDragEnd);
+    window.addEventListener('pointerup', handleDragEnd);
+    window.addEventListener('pointercancel', handleDragEnd);
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handleQuestionDragEnd);
-      window.removeEventListener('pointercancel', handleQuestionDragEnd);
+      window.removeEventListener('pointerup', handleDragEnd);
+      window.removeEventListener('pointercancel', handleDragEnd);
     };
-  }, [draggingQuestionUrl, onQuestionReorder]);
+  }, [draggingImageUrl, onAnswerReorder, onQuestionReorder, onSelectedReorder]);
 
-  const renderImageItem = (image: SelectedImage, index: number, role?: ImageRole) => (
+  const renderImageItem = (image: SelectedImage, index: number, role?: ImageRole) => {
+    const imageKey = getImageKey(image);
+    const imageOrigin = supplementImageKeys
+      ? supplementImageKeys.has(imageKey) ? 'supplement' : 'processed'
+      : getImageOrigin?.(image);
+    const isProcessedImage = imageOrigin === 'processed';
+    const isSortable = Boolean(role) || (!role && Boolean(onSelectedReorder));
+    const dragGroup = role || 'selected';
+
+    return (
     <div
-      key={image.url}
+      key={imageKey}
       className={`flex h-[116px] touch-none items-center gap-[16px] rounded-[12px] border bg-white p-[12px] ${
-        draggingQuestionUrl === image.url
+        draggingImageUrl === imageKey
           ? 'border-[#58cf9a] shadow-[0_8px_22px_rgba(88,207,154,0.22)]'
-          : dragOverQuestionUrl === image.url
+          : dragOverImageUrl === imageKey
             ? 'border-[#b6ead9]'
             : 'border-[#e6e9ed]'
       }`}
-      data-question-image-url={role === 'question' ? image.url : undefined}
-      onPointerCancel={handleQuestionDragEnd}
+      data-sortable-image-url={isSortable ? imageKey : undefined}
+      onPointerCancel={handleDragEnd}
       onPointerDown={(event) => {
-        if (role !== 'question') return;
+        if (!isSortable) return;
         if ((event.target as HTMLElement).closest('button')) return;
-        handleQuestionDragStart(image.url, event);
+        handleDragStart(imageKey, dragGroup, event);
       }}
-      onPointerUp={handleQuestionDragEnd}
+      onPointerUp={handleDragEnd}
     >
       <button
         aria-label="查看大图"
@@ -1762,31 +2435,50 @@ function CaptureImageManager({
       <div
         className="min-w-0 flex-1"
         onPointerDown={(event) => {
-          if (role === 'question') handleQuestionDragStart(image.url, event);
+          if (isSortable) handleDragStart(imageKey, dragGroup, event);
         }}
       >
         <div className="truncate text-[22px] font-medium leading-none text-[#202124]">
-          {role === 'question' ? `题目图片 ${index + 1}` : role === 'answer' ? `答案图片 ${index + 1}` : `图片 ${index + 1}`}
+          {role === 'question' ? `题目图片 ${index + 1}` : role === 'answer' ? `答案图片 ${index + 1}` : `作业图片 ${index + 1}`}
         </div>
-        <div className="mt-[10px] truncate text-[17px] leading-none text-[#7a838d]">
-          {role === 'question' ? '按住拖动可调整顺序' : '点击缩略图查看大图'}
+        <div className="mt-[10px] flex min-w-0 items-center gap-[8px]">
+          {isSupplementMode ? (
+            isProcessedImage ? (
+              <span
+                className="inline-flex shrink-0 rounded-[5px] px-[10px] py-[6px] text-[15px] font-medium leading-none shadow-[0_3px_8px_rgba(35,191,178,0.20)]"
+                style={{ backgroundColor: '#23bfb2', color: '#ffffff' }}
+              >
+                已处理
+              </span>
+            ) : (
+              <span
+                className="inline-flex shrink-0 rounded-[5px] px-[10px] py-[6px] text-[15px] font-medium leading-none shadow-[0_3px_8px_rgba(245,158,11,0.22)]"
+                style={{ backgroundColor: '#f59e0b', color: '#ffffff' }}
+              >
+                本次补充
+              </span>
+            )
+          ) : null}
+          <span className="truncate text-[17px] leading-none text-[#7a838d]">
+            {isSortable ? '按住拖动可调整顺序' : '点击缩略图查看大图'}
+          </span>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-[10px]">
-        {role === 'question' ? (
+        {isSortable ? (
           <button
-            aria-label="拖动调整题目图片顺序"
+            aria-label="拖动调整图片顺序"
             className="flex h-[42px] items-center gap-[6px] rounded-[7px] border border-[#d7dde3] bg-white px-[12px] text-[18px] leading-none text-[#4b5563] active:bg-[#f4f6f7]"
-            onPointerDown={(event) => handleQuestionDragStart(image.url, event)}
-            onPointerUp={handleQuestionDragEnd}
-            onPointerCancel={handleQuestionDragEnd}
+            onPointerDown={(event) => handleDragStart(imageKey, dragGroup, event)}
+            onPointerUp={handleDragEnd}
+            onPointerCancel={handleDragEnd}
             type="button"
           >
             <GripVertical className="h-[22px] w-[22px]" />
             排序
           </button>
         ) : null}
-        {isSeparateMode && role ? (
+        {isSeparateMode && role && !(isSupplementMode && isProcessedImage) ? (
           <button
             className="h-[42px] rounded-[7px] border border-[#d7dde3] bg-white px-[14px] text-[18px] leading-none text-[#4b5563] active:bg-[#f4f6f7]"
             onClick={() => onMove(image, role, role === 'question' ? 'answer' : 'question')}
@@ -1795,19 +2487,32 @@ function CaptureImageManager({
             移到{role === 'question' ? '答案' : '题目'}
           </button>
         ) : null}
-        <button
-          className="h-[42px] rounded-[7px] bg-[#fff1f1] px-[14px] text-[18px] leading-none text-[#e14c4c] active:bg-[#ffe5e5]"
-          onClick={() => onDelete(image, role)}
-          type="button"
-        >
-          删除
-        </button>
+        {isSupplementMode && isProcessedImage ? null : (
+          <button
+            className="h-[42px] rounded-[7px] bg-[#fff1f1] px-[14px] text-[18px] leading-none text-[#e14c4c] active:bg-[#ffe5e5]"
+            onClick={() => onDelete(image, role)}
+            type="button"
+          >
+            删除
+          </button>
+        )}
       </div>
     </div>
-  );
-  const renderGroup = (title: string, images: SelectedImage[], role?: ImageRole) => (
+    );
+  };
+  const renderGroup = (title: string, images: SelectedImage[], role?: ImageRole) => {
+    const shouldShowSortRequirementMarker =
+      (isSeparateMode && role === 'question') || (isSupplementMode && !isSeparateMode && !role);
+
+    return (
     <section>
-      <div className="mb-[14px] flex items-center justify-between">
+      <div
+        data-req-anchor={shouldShowSortRequirementMarker ? 'tablet-capture.sort-move' : undefined}
+        className="relative mb-[14px] flex items-center justify-between"
+      >
+        {shouldShowSortRequirementMarker
+          ? renderRequirementMarker('TABLET_CAPTURE-009', 'left-[62px] top-[-12px]')
+          : null}
         <h3 className="text-[24px] font-semibold leading-none text-[#202124]">{title}</h3>
         <span className="text-[19px] leading-none text-[#7a838d]">{images.length} 张</span>
       </div>
@@ -1821,13 +2526,18 @@ function CaptureImageManager({
         )}
       </div>
     </section>
-  );
+    );
+  };
 
   return (
     <div className="absolute inset-0 z-40 bg-black/45">
       <div className="absolute right-[156px] top-[118px] h-[930px] w-[720px] rounded-[18px] bg-[#f8fafb] shadow-[0_24px_70px_rgba(0,0,0,0.34)]">
         <header className="absolute left-0 top-0 h-[88px] w-full border-b border-[#e3e7ea] bg-white">
-          <div className="absolute left-[34px] top-[30px] text-[28px] font-semibold leading-none text-[#202124]">
+          <div
+            data-req-anchor="tablet-capture.manager-panel"
+            className="absolute left-[34px] top-[30px] text-[28px] font-semibold leading-none text-[#202124]"
+          >
+            {renderRequirementMarker('TABLET_CAPTURE-008', 'right-[-36px] top-[-14px]')}
             已拍图片
           </div>
           <button
@@ -1879,6 +2589,8 @@ function CaptureSimulator({
   title,
   currentRole,
   currentImages,
+  getImageOrigin,
+  isSupplementMode = false,
   mode,
   questionCount,
   answerCount,
@@ -1892,13 +2604,19 @@ function CaptureSimulator({
   onClose,
   onDeleteImage,
   onMoveImage,
+  onAnswerReorder,
   onPrimary,
   onQuestionReorder,
+  onSelectedReorder,
   onRoleChange,
+  renderRequirementMarker,
+  supplementImageKeys,
 }: {
   title: string;
   currentRole?: ImageRole;
   currentImages: SelectedImage[];
+  getImageOrigin?: (image: SelectedImage) => CaptureImageOrigin;
+  isSupplementMode?: boolean;
   mode: RecognitionMode | '';
   questionCount: number;
   answerCount: number;
@@ -1912,9 +2630,13 @@ function CaptureSimulator({
   onClose: () => void;
   onDeleteImage: (image: SelectedImage, role?: ImageRole) => void;
   onMoveImage: (image: SelectedImage, fromRole: ImageRole, toRole: ImageRole) => void;
+  onAnswerReorder: (fromUrl: string, toUrl: string) => void;
   onPrimary: () => void;
   onQuestionReorder: (fromUrl: string, toUrl: string) => void;
+  onSelectedReorder?: (fromUrl: string, toUrl: string) => void;
   onRoleChange?: (role: ImageRole) => void;
+  renderRequirementMarker: RequirementMarkerRenderer;
+  supplementImageKeys?: ReadonlySet<string>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
@@ -1925,10 +2647,11 @@ function CaptureSimulator({
     startClientY: number;
     startBox: CropRegion;
   } | null>(null);
-  const latestImage = currentImages[currentImages.length - 1];
+  const latestImage = currentImages[currentImages.length - 1] || (isSupplementMode ? selectedImages[selectedImages.length - 1] : undefined);
   const managerImageCount = mode === 'separate_answer'
     ? questionImages.length + answerImages.length
     : selectedImages.length;
+  const supplementImageCount = currentImages.length;
   const captureFrame = { height: 690, left: 360, top: 210, width: 930 };
   const captureTitleToneClass = currentRole
     ? currentRole === 'question'
@@ -2044,18 +2767,27 @@ function CaptureSimulator({
             ? `拍摄${currentRole === 'question' ? '题目' : '答案'}`
             : title}
         </div>
-
-        <button
-          aria-label="关闭"
-          className="absolute left-[31px] top-[45px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-black/70 text-white active:bg-black"
-          onClick={onClose}
-          type="button"
+        <div
+          data-req-anchor="tablet-capture.header-close"
+          className="absolute left-[31px] top-[45px] h-[52px] w-[52px]"
         >
-          <X className="h-[33px] w-[33px]" />
-        </button>
+          {renderRequirementMarker('TABLET_CAPTURE-001', 'right-[-12px] top-[-12px]')}
+          <button
+            aria-label="关闭"
+            className="flex h-full w-full items-center justify-center rounded-full bg-black/70 text-white active:bg-black"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-[33px] w-[33px]" />
+          </button>
+        </div>
 
         {currentRole ? (
-          <div className="absolute left-1/2 top-[42px] flex -translate-x-1/2 gap-[12px] rounded-full bg-black/35 p-[7px]">
+          <div
+            data-req-anchor="tablet-capture.role-tabs"
+            className="absolute left-1/2 top-[42px] flex -translate-x-1/2 gap-[12px] rounded-full bg-black/35 p-[7px]"
+          >
+            {renderRequirementMarker('TABLET_CAPTURE-002', 'right-[-14px] top-[-12px]')}
             <button
               className={`h-[44px] rounded-full px-[24px] text-[22px] leading-none ${
                 currentRole === 'question' ? 'bg-[#58cf9a] text-white' : 'text-white/82'
@@ -2077,36 +2809,58 @@ function CaptureSimulator({
           </div>
         ) : null}
 
-        <button
-          className="absolute right-[156px] top-[50px] rounded-full bg-black/55 px-[28px] py-[16px] text-[25px] font-medium leading-none text-white"
-          type="button"
+        <div
+          data-req-anchor="tablet-capture.example"
+          className="absolute right-[156px] top-[50px]"
         >
-          拍摄示例
-        </button>
+          {renderRequirementMarker('TABLET_CAPTURE-003', 'right-[-12px] top-[-12px]')}
+          <button
+            className="rounded-full bg-black/55 px-[28px] py-[16px] text-[25px] font-medium leading-none text-white"
+            type="button"
+          >
+            拍摄示例
+          </button>
+        </div>
       </div>
 
       <aside className="absolute right-0 top-0 h-full w-[136px] bg-[#1f1f1f]">
-        <button
-          aria-label="从相册选择"
-          className="absolute left-[30px] top-[232px] flex h-[76px] w-[76px] items-center justify-center rounded-full bg-black text-white active:bg-[#303030]"
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
+        <div
+          data-req-anchor="tablet-capture.album"
+          className="absolute left-[30px] top-[232px] h-[76px] w-[76px]"
         >
-          <Images className="h-[38px] w-[38px]" />
-        </button>
+          {renderRequirementMarker('TABLET_CAPTURE-004', 'right-[-12px] top-[-14px]')}
+          <button
+            aria-label="从相册选择"
+            className="flex h-full w-full items-center justify-center rounded-full bg-black text-white active:bg-[#303030]"
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            <Images className="h-[38px] w-[38px]" />
+          </button>
+        </div>
 
-        <button
-          aria-label={pendingCaptureBox ? '确认拍照裁剪' : '拍照'}
-          className={`absolute left-[23px] top-[538px] flex h-[90px] w-[90px] items-center justify-center rounded-full border-[8px] border-white/45 shadow-[0_0_0_2px_rgba(255,255,255,0.75)] active:scale-95 ${
-            pendingCaptureBox ? 'bg-[#58cf9a] text-white' : 'bg-white text-[#202124]'
-          }`}
-          onClick={handleCaptureButtonClick}
-          type="button"
+        <div
+          data-req-anchor="tablet-capture.shutter-crop"
+          className="absolute left-[23px] top-[538px] h-[90px] w-[90px]"
         >
-          {pendingCaptureBox ? <Check className="h-[42px] w-[42px] stroke-[3]" /> : null}
-        </button>
+          {renderRequirementMarker('TABLET_CAPTURE-005', 'right-[-12px] top-[-14px]')}
+          <button
+            aria-label={pendingCaptureBox ? '确认拍照裁剪' : '拍照'}
+            className={`flex h-full w-full items-center justify-center rounded-full border-[8px] border-white/45 shadow-[0_0_0_2px_rgba(255,255,255,0.75)] active:scale-95 ${
+              pendingCaptureBox ? 'bg-[#58cf9a] text-white' : 'bg-white text-[#202124]'
+            }`}
+            onClick={handleCaptureButtonClick}
+            type="button"
+          >
+            {pendingCaptureBox ? <Check className="h-[42px] w-[42px] stroke-[3]" /> : null}
+          </button>
+        </div>
 
-        <div className="absolute bottom-[150px] left-[31px] h-[82px] w-[82px]">
+        <div
+          data-req-anchor="tablet-capture.manager-entry"
+          className="absolute bottom-[150px] left-[31px] h-[82px] w-[82px]"
+        >
+          {renderRequirementMarker('TABLET_CAPTURE-007', 'right-[-12px] top-[-14px]')}
           <button
             aria-label="管理已拍图片"
             className="relative block h-[82px] w-[82px] rounded-[10px] active:scale-95 disabled:active:scale-100"
@@ -2129,28 +2883,45 @@ function CaptureSimulator({
               {currentImages.length}
             </span>
           ) : null}
+          {isSupplementMode ? (
+            <span className="absolute left-1/2 top-[88px] -translate-x-1/2 whitespace-nowrap rounded-full bg-[#2f3438] px-[10px] py-[6px] text-[15px] leading-none text-white/86">
+              本次 {supplementImageCount}
+            </span>
+          ) : null}
         </div>
-        <button
-          className={`absolute bottom-[42px] left-[16px] h-[48px] w-[104px] rounded-[24px] text-[18px] font-medium leading-none text-white ${
-            primaryDisabled ? 'bg-[#7a7a7a]' : 'bg-[#58cf9a] active:bg-[#45bf89]'
-          }`}
-          disabled={primaryDisabled}
-          onClick={onPrimary}
-          type="button"
+        <div
+          data-req-anchor="tablet-capture.primary-action"
+          className="absolute bottom-[42px] left-[16px] h-[48px] w-[104px]"
         >
-          {primaryText}
-        </button>
+          {renderRequirementMarker('TABLET_CAPTURE-006', 'right-[-12px] top-[-14px]')}
+          <button
+            className={`h-full w-full rounded-[24px] text-[18px] font-medium leading-none text-white ${
+              primaryDisabled ? 'bg-[#7a7a7a]' : 'bg-[#58cf9a] active:bg-[#45bf89]'
+            }`}
+            disabled={primaryDisabled}
+            onClick={onPrimary}
+            type="button"
+          >
+            {primaryText}
+          </button>
+        </div>
       </aside>
       {isManagerOpen ? (
         <CaptureImageManager
           answerImages={answerImages}
+          getImageOrigin={getImageOrigin}
+          isSupplementMode={isSupplementMode}
           mode={mode}
+          onAnswerReorder={onAnswerReorder}
           onClose={() => setIsManagerOpen(false)}
           onDelete={onDeleteImage}
           onMove={onMoveImage}
           onQuestionReorder={onQuestionReorder}
+          onSelectedReorder={onSelectedReorder}
           questionImages={questionImages}
+          renderRequirementMarker={renderRequirementMarker}
           selectedImages={selectedImages}
+          supplementImageKeys={supplementImageKeys}
         />
       ) : null}
     </div>
@@ -2346,25 +3117,42 @@ function TabletConfirmDialog({
   action,
   onCancel,
   onConfirm,
+  renderRequirementMarker,
 }: {
   action: TabletConfirmAction;
   onCancel: () => void;
   onConfirm: () => void;
+  renderRequirementMarker?: RequirementMarkerRenderer;
 }) {
   if (!action) return null;
 
   const isClear = action === 'clear';
+  const title = isClear ? '确认清空所有切题框吗？' : '当前操作将清空本次框选内容';
+  const description = action === 'back'
+    ? '返回上一步后，当前自动切题框和手动添加的识别框都不会保留。'
+    : action === 'replace'
+      ? '更换资料后，当前资料、框选内容和识别方式都需要重新选择。'
+      : '';
+  const confirmText = action === 'back'
+    ? '确认返回'
+    : isClear
+      ? '确认清空'
+      : '确认';
 
   return (
     <div className="absolute inset-0 z-50 bg-black/45">
-      <section className="absolute left-1/2 top-1/2 h-[302px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+      <section
+        className="absolute left-1/2 top-1/2 h-[302px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
+        data-req-anchor="tablet-question-content-selection.confirm-dialog"
+      >
+        {renderRequirementMarker?.('TABLET_QUESTION_CONTENT_SELECTION-021', 'right-[18px] top-[18px]')}
         <div className={`absolute left-[40px] right-[40px] ${isClear ? 'top-1/2 -translate-y-1/2' : 'top-[42px]'}`}>
           <h3 className={`text-[28px] font-semibold leading-none text-[#202124] ${isClear ? 'text-center' : ''}`}>
-            {isClear ? '确认清空所有切题框？' : '确认更换资料吗？'}
+            {title}
           </h3>
-          {!isClear ? (
+          {description ? (
             <p className="mt-[24px] text-[21px] leading-[32px] text-[#68727d]">
-              更换资料，将清空当前已识别的内容，并且需要重新选择识别方式。
+              {description}
             </p>
           ) : null}
         </div>
@@ -2381,7 +3169,7 @@ function TabletConfirmDialog({
             onClick={onConfirm}
             type="button"
           >
-            {isClear ? '确认清空' : '确认'}
+            {confirmText}
           </button>
         </div>
       </section>
@@ -2390,27 +3178,90 @@ function TabletConfirmDialog({
 }
 
 function AddBoxModeTipDialog({
+  mode,
+  onCancel,
   onConfirm,
+  onModeChange,
+  renderRequirementMarker,
 }: {
+  mode: AddBoxInteractionMode;
+  onCancel: () => void;
   onConfirm: () => void;
+  onModeChange: (mode: AddBoxInteractionMode) => void;
+  renderRequirementMarker?: RequirementMarkerRenderer;
 }) {
+  const options: Array<{
+    description: string;
+    label: string;
+    value: AddBoxInteractionMode;
+  }> = [
+    {
+      description: '按住资料上的题目区域拖动，松手后生成一个识别框。',
+      label: '画线生成识别框',
+      value: 'draw',
+    },
+    {
+      description: '点击资料上的题目位置，系统在点击处生成默认大小的识别框。',
+      label: '点击位置生成识别框',
+      value: 'tap',
+    },
+  ];
+
   return (
     <div className="absolute inset-0 z-50 bg-black/45">
-      <section className="absolute left-1/2 top-1/2 w-[640px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-white px-[44px] py-[38px] shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+      <section
+        className="absolute left-1/2 top-1/2 w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-white px-[44px] py-[38px] shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
+        data-req-anchor="tablet-question-content-selection.add-box-tip"
+      >
+        {renderRequirementMarker?.('TABLET_QUESTION_CONTENT_SELECTION-008', 'right-[58px] top-[18px]')}
         <button
           aria-label="关闭识别框添加提示"
           className="absolute right-[18px] top-[18px] flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#68727d] active:bg-[#f3f5f6] active:text-[#202124]"
-          onClick={onConfirm}
+          onClick={onCancel}
           type="button"
         >
           <X className="h-[22px] w-[22px] stroke-[2.4]" />
         </button>
         <h3 className="text-[28px] font-semibold leading-none text-[#202124]">
-          识别框添加提示
+          选择添加识别框的方式
         </h3>
-        <p className="mt-[24px] text-[21px] leading-[34px] text-[#3f4852]">
-          启用后，您可在需框选的题目位置单击屏幕，即可增加识别框（无需使用时，再次点击按钮，即可关闭该功能）。
-        </p>
+        <div
+          className="space-y-[18px]"
+          data-req-anchor="tablet-question-content-selection.manual-box-interaction"
+          style={{ marginTop: 56 }}
+        >
+          {renderRequirementMarker?.('TABLET_QUESTION_CONTENT_SELECTION-007', 'right-[-12px] top-[-12px]')}
+          {options.map((option) => {
+            const isSelected = mode === option.value;
+
+            return (
+              <button
+                key={option.value}
+                className={`flex w-full items-center gap-[18px] rounded-[12px] border px-[22px] py-[20px] text-left ${
+                  isSelected
+                    ? 'border-[#23bfb2] bg-[#e9fbf7]'
+                    : 'border-[#dfe5ea] bg-white active:bg-[#f6f8f9]'
+                }`}
+                onClick={() => onModeChange(option.value)}
+                type="button"
+              >
+                <span className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border-[2px] ${
+                  isSelected ? 'border-[#23bfb2]' : 'border-[#c8d0d8]'
+                }`}>
+                  {isSelected ? <span className="h-[10px] w-[10px] rounded-full bg-[#23bfb2]" /> : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[22px] font-semibold leading-none text-[#202124]">
+                    {option.label}
+                  </span>
+                  <span className="mt-[12px] block text-[18px] leading-[28px] text-[#68727d]">
+                    {option.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
         <div className="mt-[34px] flex justify-end">
           <button
             className="h-[48px] rounded-[8px] bg-[#23bfb2] px-[30px] text-[21px] font-medium leading-none text-white active:bg-[#12a99d]"
@@ -2427,6 +3278,54 @@ function AddBoxModeTipDialog({
 
 function getReviewQuestionTypeLabel(type: ReviewQuestionType) {
   return allReviewQuestionTypeOptions.find((option) => option.value === type)?.label || '问答题';
+}
+
+function buildPaperEditDataFromTabletReview(
+  questions: ReviewQuestion[],
+  materialPages: MaterialPage[],
+  subject: string,
+  mode: RecognitionMode,
+  joinPaperMode: JoinPaperMode,
+) {
+  return {
+    joinPaperMode,
+    pageImages: materialPages.map((page) => ({
+      data: page.imageData,
+      fileName: page.name,
+      sourceFileIndex: 0,
+      pageNumber: page.pageNumber,
+    })),
+    questions: questions.map((question, index) => ({
+      id: String(question.id),
+      number: index + 1,
+      questionType: getReviewQuestionTypeLabel(question.questionType),
+      content: question.content || '',
+      answer: mode === 'questions_only' ? '' : question.answer || '',
+      analysis: mode === 'questions_only' ? '' : question.analysis || '',
+      knowledgePoints: [],
+      difficulty: '容易',
+      croppedImageData: question.userCroppedImageData || question.croppedImageData || '',
+      originalCroppedImageData: question.croppedImageData || '',
+      optionCount: isChoiceLikeQuestionType(question.questionType) ? question.optionCount : 0,
+      optionContents: isChoiceLikeQuestionType(question.questionType) ? question.optionContents || {} : {},
+      blankCount: question.blankCount,
+      blankAnswers: mode === 'questions_only' ? [] : question.blankAnswers || [],
+      subQuestions: question.subQuestions.map((subQuestion, subIndex) => ({
+        id: String(subQuestion.id),
+        number: `${index + 1}.${subIndex + 1}`,
+        questionType: getReviewQuestionTypeLabel(subQuestion.questionType),
+        content: subQuestion.content || '',
+        answer: mode === 'questions_only' ? '' : subQuestion.answer || '',
+        analysis: mode === 'questions_only' ? '' : subQuestion.analysis || '',
+        optionCount: isChoiceLikeQuestionType(subQuestion.questionType) ? subQuestion.optionCount : 0,
+        optionContents: isChoiceLikeQuestionType(subQuestion.questionType) ? subQuestion.optionContents || {} : {},
+        optionAnalyses: subQuestion.optionAnalyses || {},
+        blankCount: subQuestion.blankCount || 1,
+        blankAnswers: mode === 'questions_only' ? [] : subQuestion.blankAnswers || [],
+      })),
+    })),
+    subjectInfo: subject || SINGLE_SUBJECT,
+  };
 }
 
 function createInitialReviewQuestions(boxes: RecognitionBox[], displayMode: ReviewDisplayMode): ReviewQuestion[] {
@@ -2611,11 +3510,15 @@ function QuestionTypeSelect({
 function CountStepper({
   disabled = false,
   label,
+  max = 12,
+  min = 1,
   onChange,
   value,
 }: {
   disabled?: boolean;
   label: string;
+  max?: number;
+  min?: number;
   onChange: (value: number) => void;
   value: number;
 }) {
@@ -2624,8 +3527,8 @@ function CountStepper({
       <span className="px-[12px] text-[18px] leading-none text-[#68727d]">{label}</span>
       <button
         className="flex h-full w-[38px] items-center justify-center border-l border-[#d7dde3] text-[#69727c] active:bg-[#f3f5f6] disabled:text-[#c4cbd2]"
-        disabled={disabled || value <= 1}
-        onClick={() => onChange(Math.max(1, value - 1))}
+        disabled={disabled || value <= min}
+        onClick={() => onChange(Math.max(min, value - 1))}
         type="button"
       >
         <Minus className="h-[18px] w-[18px]" />
@@ -2635,8 +3538,8 @@ function CountStepper({
       </span>
       <button
         className="flex h-full w-[38px] items-center justify-center border-l border-[#d7dde3] text-[#69727c] active:bg-[#f3f5f6]"
-        disabled={disabled}
-        onClick={() => onChange(Math.min(12, value + 1))}
+        disabled={disabled || value >= max}
+        onClick={() => onChange(Math.min(max, value + 1))}
         type="button"
       >
         <Plus className="h-[18px] w-[18px]" />
@@ -2783,9 +3686,9 @@ function CroppedQuestionImage({
 
 function AnswerConfigPanel({
   answerMode = false,
-  onAddSubQuestion,
   onBlankCountChange,
   onDeleteSubQuestion,
+  onInsertSubQuestion,
   onOptionCountChange,
   onSetClozeSubQuestionCount,
   onSubQuestionBlankCountChange,
@@ -2795,9 +3698,9 @@ function AnswerConfigPanel({
   subject,
 }: {
   answerMode?: boolean;
-  onAddSubQuestion: (questionType: ReviewQuestionType) => void;
   onBlankCountChange: (value: number) => void;
   onDeleteSubQuestion: (subQuestionId: string) => void;
+  onInsertSubQuestion?: (subQuestionId: string, placement: 'before' | 'after', questionType: ReviewQuestionType) => void;
   onOptionCountChange: (value: number) => void;
   onSetClozeSubQuestionCount: (value: number) => void;
   onSubQuestionBlankCountChange: (subQuestionId: string, value: number) => void;
@@ -2806,12 +3709,14 @@ function AnswerConfigPanel({
   question: ReviewQuestion;
   subject: string;
 }) {
-  const [isAddTypeMenuOpen, setIsAddTypeMenuOpen] = useState(false);
+  const [rowAddMenu, setRowAddMenu] = useState<ImageModeSubQuestionInsertMenu>(null);
+  const [rowTypeMenuSubQuestionId, setRowTypeMenuSubQuestionId] = useState<string | null>(null);
   const isEnglishSubject = isEnglishSubjectName(subject);
   const questionTypeOptions = getReviewQuestionTypeOptions(subject);
+  const subQuestionTypeOptions = questionTypeOptions.filter((option) => !canAddReviewSubQuestions(option.value, subject));
 
   if (question.questionType === 'single_choice' || question.questionType === 'multiple_choice') {
-    return <CountStepper label="选项数" onChange={onOptionCountChange} value={question.optionCount} />;
+    return <CountStepper label="选项数" max={26} min={2} onChange={onOptionCountChange} value={question.optionCount} />;
   }
 
   if (question.questionType === 'fill_blank') {
@@ -2831,94 +3736,72 @@ function AnswerConfigPanel({
           </label>
         </div>
         <div className="mx-[16px] h-[28px] w-px bg-[#c9ced3]" />
-        <CountStepper label="选项数" onChange={onOptionCountChange} value={question.optionCount} />
+        <CountStepper label="选项数" max={26} min={2} onChange={onOptionCountChange} value={question.optionCount} />
       </div>
     );
   }
 
-  if (question.questionType === 'material' || (isEnglishSubject && question.questionType === 'reading_comprehension')) {
+  if (canAddReviewSubQuestions(question.questionType, subject) && question.questionType !== 'cloze') {
     const isFixedSingleChoiceSubQuestion = isEnglishSubject && question.questionType === 'reading_comprehension';
 
     return (
       <div>
-        <div className="mb-[18px] flex items-center gap-[14px]">
-          <div className="relative">
-            <button
-              className="inline-flex h-[44px] items-center gap-[8px] rounded-[6px] border border-[#c9ced3] bg-white px-[16px] text-[20px] leading-none text-[#4d5258] active:bg-[#f4f6f7]"
-              onClick={() => {
-                if (isFixedSingleChoiceSubQuestion) {
-                  onAddSubQuestion('single_choice');
-                  setIsAddTypeMenuOpen(false);
-                  return;
-                }
-                setIsAddTypeMenuOpen((isOpen) => !isOpen);
-              }}
-              type="button"
-            >
-              <Plus className="h-[22px] w-[22px] stroke-[2.4]" />
-              子题
-            </button>
-            {isAddTypeMenuOpen && !isFixedSingleChoiceSubQuestion ? (
-              <div className="absolute left-0 top-[52px] z-30 w-[188px] overflow-hidden rounded-[9px] border border-[#dfe4e8] bg-white shadow-[0_14px_32px_rgba(31,44,58,0.18)]">
-                {questionTypeOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    className="h-[46px] w-full px-[18px] text-left text-[20px] leading-none text-[#4d5258] active:bg-[#f3f5f6]"
-                    onClick={() => {
-                      onAddSubQuestion(option.value);
-                      setIsAddTypeMenuOpen(false);
-                    }}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          {isFixedSingleChoiceSubQuestion ? (
-            <span className="text-[20px] leading-none text-[#8b8f95]">子题固定为单选题</span>
-          ) : (
-            <>
-              <span className="flex h-[24px] w-[24px] items-center justify-center rounded-full bg-[#b7bbc0] text-[18px] font-semibold leading-none text-white">
-                !
-              </span>
-              <span className="text-[20px] leading-none text-[#8b8f95]">请核对子题题型</span>
-            </>
-          )}
-        </div>
         {answerMode ? null : (
         <div className="grid justify-start gap-[16px]">
           {question.subQuestions.map((subQuestion, index) => (
             <div key={subQuestion.id} className="inline-flex min-h-[54px] w-fit items-center rounded-[7px] bg-[#f3f4f5] px-[16px] py-[7px]">
-              <label className={`relative inline-flex h-[40px] items-center gap-[12px] pr-[12px] text-[22px] leading-none ${isFixedSingleChoiceSubQuestion ? 'text-[#6c737a]' : 'text-[#555b61]'}`}>
-                {isFixedSingleChoiceSubQuestion ? null : (
-                  <select
-                    aria-label="子题题型"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    onChange={(event) => onSubQuestionTypeChange(subQuestion.id, event.target.value as ReviewQuestionType)}
-                    value={subQuestion.questionType}
-                  >
-                    {questionTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
+              <div className="relative">
+                <button
+                  aria-label="子题题型"
+                  className={`inline-flex h-[40px] items-center gap-[12px] pr-[12px] text-[22px] leading-none ${
+                    isFixedSingleChoiceSubQuestion ? 'text-[#6c737a]' : 'text-[#555b61] active:text-[#23bfb2]'
+                  }`}
+                  disabled={isFixedSingleChoiceSubQuestion}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setRowAddMenu(null);
+                    setRowTypeMenuSubQuestionId((currentId) => (
+                      currentId === subQuestion.id ? null : subQuestion.id
+                    ));
+                  }}
+                  type="button"
+                >
+                  <span className="flex h-[33px] w-[33px] shrink-0 items-center justify-center rounded-full border border-[#7b8085] text-[22px] leading-none text-[#5c6166]">
+                    {index + 1}
+                  </span>
+                  <span>{isFixedSingleChoiceSubQuestion ? '单选' : getReviewQuestionTypeLabel(subQuestion.questionType).replace('题', '')}</span>
+                  {isFixedSingleChoiceSubQuestion ? null : (
+                    <ChevronDown className="h-[24px] w-[24px] stroke-[2.4] text-[#555b61]" />
+                  )}
+                </button>
+                {rowTypeMenuSubQuestionId === subQuestion.id && !isFixedSingleChoiceSubQuestion ? (
+                  <div className="absolute left-[44px] top-[44px] z-50 w-[118px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px] text-[18px] leading-none text-[#343a40] shadow-[0_16px_38px_rgba(31,44,58,0.18)]">
+                    {subQuestionTypeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        className={`h-[42px] w-full whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6] ${
+                          subQuestion.questionType === option.value ? 'text-[#23bfb2]' : ''
+                        }`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSubQuestionTypeChange(subQuestion.id, option.value);
+                          setRowTypeMenuSubQuestionId(null);
+                        }}
+                        type="button"
+                      >
+                        {option.label.replace('题', '')}
+                      </button>
                     ))}
-                  </select>
-                )}
-                <span className="flex h-[33px] w-[33px] shrink-0 items-center justify-center rounded-full border border-[#7b8085] text-[22px] leading-none text-[#5c6166]">
-                  {index + 1}
-                </span>
-                <span>{isFixedSingleChoiceSubQuestion ? '单选' : getReviewQuestionTypeLabel(subQuestion.questionType).replace('题', '')}</span>
-                {isFixedSingleChoiceSubQuestion ? null : (
-                  <ChevronDown className="h-[24px] w-[24px] stroke-[2.4] text-[#555b61]" />
-                )}
-              </label>
+                  </div>
+                ) : null}
+              </div>
               {subQuestion.questionType === 'single_choice' || subQuestion.questionType === 'multiple_choice' ? (
                 <>
                   <div className="mx-[16px] h-[28px] w-px bg-[#c9ced3]" />
                   <CountStepper
                     label="选项数"
+                    max={26}
+                    min={2}
                     onChange={(value) => onSubQuestionOptionCountChange(subQuestion.id, value)}
                     value={subQuestion.optionCount}
                   />
@@ -2934,14 +3817,81 @@ function AnswerConfigPanel({
                   />
                 </>
               ) : null}
-              <button
-                aria-label="删除子题"
-                className="ml-[14px] flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#7b8085] active:bg-[#eceff1] active:text-[#d84a4a]"
-                onClick={() => onDeleteSubQuestion(subQuestion.id)}
-                type="button"
-              >
-                <Trash2 className="h-[20px] w-[20px]" />
-              </button>
+              {onInsertSubQuestion ? (
+                <div className="relative ml-[12px]">
+                  <button
+                    aria-label="添加子题"
+                    className={`flex h-[34px] w-[34px] items-center justify-center rounded-full active:bg-[#e6faf7] ${
+                      rowAddMenu?.subQuestionId === subQuestion.id ? 'text-[#23bfb2]' : 'text-[#7b8085]'
+                    }`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setRowTypeMenuSubQuestionId(null);
+                      setRowAddMenu((current) => (
+                        current?.subQuestionId === subQuestion.id
+                          ? null
+                          : { questionId: question.id, subQuestionId: subQuestion.id }
+                      ));
+                    }}
+                    type="button"
+                  >
+                    <CirclePlus className="h-[19px] w-[19px] stroke-[2.4]" />
+                  </button>
+                  {rowAddMenu?.subQuestionId === subQuestion.id ? (
+                    <div className="absolute left-[36px] top-[30px] z-40 flex items-start rounded-[8px] text-[18px] leading-none text-[#343a40] shadow-[0_16px_38px_rgba(31,44,58,0.18)]">
+                      <div className="w-[186px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px]">
+                        {[
+                          { value: 'before' as const, label: '在上方添加子题' },
+                          { value: 'after' as const, label: '在下方添加子题' },
+                        ].map((item) => (
+                          <button
+                            key={item.value}
+                            className={`flex h-[44px] w-full items-center justify-between gap-[8px] whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6] ${
+                              rowAddMenu.placement === item.value ? 'text-[#23bfb2]' : ''
+                            }`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setRowAddMenu({ questionId: question.id, subQuestionId: subQuestion.id, placement: item.value });
+                            }}
+                            type="button"
+                          >
+                            <span>{item.label}</span>
+                            <ChevronDown className="h-[18px] w-[18px] -rotate-90 stroke-[2.4]" />
+                          </button>
+                        ))}
+                      </div>
+                      {rowAddMenu.placement ? (
+                        <div className="ml-[4px] w-[92px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px]">
+                          {subQuestionTypeOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              className="h-[42px] w-full whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6]"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onInsertSubQuestion(subQuestion.id, rowAddMenu.placement!, option.value);
+                                setRowAddMenu(null);
+                              }}
+                              type="button"
+                            >
+                              {option.label.replace('题', '')}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {question.subQuestions.length > 1 ? (
+                <button
+                  aria-label="删除子题"
+                  className="ml-[8px] flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#7b8085] active:bg-[#eceff1] active:text-[#d84a4a]"
+                  onClick={() => onDeleteSubQuestion(subQuestion.id)}
+                  type="button"
+                >
+                  <Trash2 className="h-[20px] w-[20px]" />
+                </button>
+              ) : null}
             </div>
           ))}
         </div>
@@ -2955,35 +3905,53 @@ function AnswerConfigPanel({
 
 function TabletOcrQuestionReviewPage({
   boxes,
+  initialQuestions,
   materialPages,
   mode,
   onBackToSelection,
   onExit,
+  renderRequirementMarker,
   subject,
 }: {
   boxes: RecognitionBox[];
+  initialQuestions?: ReviewQuestion[];
   materialPages: MaterialPage[];
   mode: RecognitionMode;
   onBackToSelection: () => void;
   onExit: () => void;
+  renderRequirementMarker?: RequirementMarkerRenderer;
   subject: string;
 }) {
+  const router = useRouter();
   const initialSelectedBoxes = boxes
     .filter((box) => box.selected)
     .sort((firstBox, secondBox) => firstBox.pageNumber - secondBox.pageNumber || firstBox.y - secondBox.y);
   const initialReviewBoxes = initialSelectedBoxes.map((box) => ({ ...box, selected: false }));
+  const hasInitialQuestions = Boolean(initialQuestions?.length);
   const [globalMode, setGlobalMode] = useState<ReviewDisplayMode>('recognition');
   const [reviewBoxes, setReviewBoxes] = useState<RecognitionBox[]>(initialReviewBoxes);
-  const [questions, setQuestions] = useState<ReviewQuestion[]>(() => createInitialReviewQuestions(initialSelectedBoxes, 'recognition'));
+  const [questions, setQuestions] = useState<ReviewQuestion[]>(() => (
+    initialQuestions?.length
+      ? initialQuestions.map((question) => ({ ...question }))
+      : createInitialReviewQuestions(initialSelectedBoxes, 'recognition')
+  ));
   const [activeQuestionId, setActiveQuestionId] = useState('');
   const [openMenuQuestionId, setOpenMenuQuestionId] = useState<string | null>(null);
-  const [recognitionAddSubMenu, setRecognitionAddSubMenu] = useState<{ questionId: string; afterIndex: number } | null>(null);
+  const [recognitionAddSubMenu, setRecognitionAddSubMenu] = useState<{
+    questionId: string;
+    subQuestionId: string;
+    afterIndex: number;
+    placement?: 'before' | 'after';
+  } | null>(null);
+  const [imageModeAddSubMenu, setImageModeAddSubMenu] = useState<ImageModeSubQuestionInsertMenu>(null);
+  const [imageModeTypeMenu, setImageModeTypeMenu] = useState<{ questionId: string; subQuestionId: string } | null>(null);
+  const [pendingSubQuestionDeletion, setPendingSubQuestionDeletion] = useState<PendingSubQuestionDeletion>(null);
   const [manualLinkTarget, setManualLinkTarget] = useState<TabletManualLinkTarget | null>(null);
   const [manualLinkProcessingTarget, setManualLinkProcessingTarget] = useState<TabletManualLinkTarget | null>(null);
   const [precisionRecognitionBox, setPrecisionRecognitionBox] = useState<RecognitionBox | null>(null);
   const [editingCropQuestionId, setEditingCropQuestionId] = useState<string | null>(null);
-  const [recognitionStatus, setRecognitionStatus] = useState<'idle' | 'recognizing' | 'done' | 'failed'>('idle');
-  const [answerMatchStatus, setAnswerMatchStatus] = useState<'idle' | 'matching' | 'done' | 'failed'>('idle');
+  const [recognitionStatus, setRecognitionStatus] = useState<'idle' | 'recognizing' | 'done' | 'failed'>(hasInitialQuestions ? 'done' : 'idle');
+  const [answerMatchStatus, setAnswerMatchStatus] = useState<'idle' | 'matching' | 'done' | 'failed'>(hasInitialQuestions ? 'done' : 'idle');
   const [recognitionMessage, setRecognitionMessage] = useState('正在准备识别题型...');
   const [answerMatchMessage, setAnswerMatchMessage] = useState('');
   const [pendingReviewBoxIds, setPendingReviewBoxIds] = useState<Set<string>>(new Set());
@@ -2995,7 +3963,7 @@ function TabletOcrQuestionReviewPage({
   const [showJoinEmptyStemDialog, setShowJoinEmptyStemDialog] = useState(false);
   const [showJoinEditingDialog, setShowJoinEditingDialog] = useState(false);
   const [showJoinModeDialog, setShowJoinModeDialog] = useState(false);
-  const [joinPaperMode, setJoinPaperMode] = useState<JoinPaperMode>('by_type');
+  const [joinPaperMode, setJoinPaperMode] = useState<JoinPaperMode>('by_order');
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [reviewBoxDrag, setReviewBoxDrag] = useState<{
     id: string;
@@ -3017,13 +3985,57 @@ function TabletOcrQuestionReviewPage({
   const imageDisplaySizesRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const hasDraggedCropRef = useRef(false);
   const hasMovedReviewBoxRef = useRef(false);
-  const recognitionStartedRef = useRef(false);
-  const answerMatchStartedRef = useRef(false);
+  const recognitionStartedRef = useRef(hasInitialQuestions);
+  const answerMatchStartedRef = useRef(hasInitialQuestions);
   const toastTimerRef = useRef<number | null>(null);
   const validQuestionTypes = getValidQuestionTypes(subject || '');
   const reviewQuestionTypeOptions = getReviewQuestionTypeOptions(subject);
   const shouldShowAnswerAnalysis = mode !== 'questions_only';
   const [toastMessage, setToastMessage] = useState('');
+  const renderReviewImageRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    if (mode !== 'questions_only' || globalMode !== 'image') {
+      return null;
+    }
+
+    return renderRequirementMarker?.(requirementId, className, displayNumber) ?? null;
+  };
+  const renderReviewRecognitionRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    if (mode !== 'questions_only') {
+      return null;
+    }
+
+    return renderRequirementMarker?.(requirementId, className, displayNumber) ?? null;
+  };
+  const renderReviewQaImageRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    if (mode === 'questions_only' || globalMode !== 'image') {
+      return null;
+    }
+
+    return renderRequirementMarker?.(requirementId, className, displayNumber) ?? null;
+  };
+  const renderReviewQaRecognitionRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    if (mode === 'questions_only' || globalMode !== 'recognition') {
+      return null;
+    }
+
+    return renderRequirementMarker?.(requirementId, className, displayNumber) ?? null;
+  };
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -3037,6 +4049,32 @@ function TabletOcrQuestionReviewPage({
   useEffect(() => () => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    setQuestions((currentQuestions) => {
+      let changed = false;
+      const nextQuestions = currentQuestions.map((question) => {
+        if (!canAddReviewSubQuestions(question.questionType, subject) || question.subQuestions.length > 0) {
+          return question;
+        }
+
+        changed = true;
+        const subQuestionType = question.questionType === 'cloze' || question.questionType === 'reading_comprehension'
+          ? 'single_choice'
+          : 'short_answer';
+
+        return {
+          ...question,
+          blankCount: question.questionType === 'cloze' ? 1 : question.blankCount,
+          subQuestions: [createReviewSubQuestion(question.id, 0, subQuestionType, {
+            optionCount: getDefaultOptionCount(subQuestionType),
+          })],
+        };
+      });
+
+      return changed ? nextQuestions : currentQuestions;
+    });
+  }, [questions, subject]);
 
   const hasMissingAnswerOrAnalysis = (question: ReviewQuestion) => {
     if (!shouldShowAnswerAnalysis) return false;
@@ -3755,10 +4793,11 @@ function TabletOcrQuestionReviewPage({
                 if (label) contents[label] = option.content;
                 return contents;
               }, { ...(subQuestion.optionContents || {}) });
+              const optionCount = getNormalizedOptionCount(subQuestion.questionType, Math.max(subQuestion.optionCount, result.options.length));
               return {
                 ...subQuestion,
-                optionContents: buildOptionContents(subQuestion.questionType, Math.max(subQuestion.optionCount, result.options.length), optionContents),
-                optionCount: Math.max(subQuestion.optionCount, result.options.length),
+                optionContents: buildOptionContents(subQuestion.questionType, optionCount, optionContents),
+                optionCount,
               };
             }
             return result.plainContent ? { ...subQuestion, content: result.plainContent } : subQuestion;
@@ -3772,10 +4811,11 @@ function TabletOcrQuestionReviewPage({
           if (label) contents[label] = option.content;
           return contents;
         }, { ...(currentQuestion.optionContents || {}) });
+        const optionCount = getNormalizedOptionCount(currentQuestion.questionType, Math.max(currentQuestion.optionCount, result.options.length));
         return {
           ...currentQuestion,
-          optionContents: buildOptionContents(currentQuestion.questionType, Math.max(currentQuestion.optionCount, result.options.length), optionContents),
-          optionCount: Math.max(currentQuestion.optionCount, result.options.length),
+          optionContents: buildOptionContents(currentQuestion.questionType, optionCount, optionContents),
+          optionCount,
         };
       }
 
@@ -3922,8 +4962,124 @@ function TabletOcrQuestionReviewPage({
     setRecognitionAddSubMenu(null);
   };
 
+  const getImageModeSubQuestionOptions = () => (
+    reviewQuestionTypeOptions.filter((option) => (
+      !canAddReviewSubQuestions(option.value, subject)
+    ))
+  );
+
+  const insertImageModeSubQuestion = (
+    questionId: string,
+    anchorSubQuestionId: string,
+    placement: 'before' | 'after',
+    questionType: ReviewQuestionType,
+  ) => {
+    updateQuestion(questionId, (currentQuestion) => {
+      const nextSubQuestions = [...currentQuestion.subQuestions];
+      const anchorIndex = nextSubQuestions.findIndex((subQuestion) => subQuestion.id === anchorSubQuestionId);
+      const insertIndex = anchorIndex < 0
+        ? nextSubQuestions.length
+        : placement === 'before'
+          ? anchorIndex
+          : anchorIndex + 1;
+
+      nextSubQuestions.splice(insertIndex, 0, createReviewSubQuestion(currentQuestion.id, insertIndex, questionType, {
+        blankCount: getDefaultBlankCount(questionType),
+        optionCount: getDefaultOptionCount(questionType),
+      }));
+
+      return {
+        ...currentQuestion,
+        blankCount: currentQuestion.questionType === 'cloze' ? nextSubQuestions.length : currentQuestion.blankCount,
+        subQuestions: nextSubQuestions,
+      };
+    });
+    showToast('子题添加成功');
+    setImageModeAddSubMenu(null);
+    setImageModeTypeMenu(null);
+  };
+
+  const hasSubQuestionUserContent = (subQuestion: ReviewQuestion['subQuestions'][number]) => {
+    const hasOptionContent = Object.entries(subQuestion.optionContents || {}).some(([letter, value]) => (
+      isUsableText(value) && value.trim() !== getDefaultOptionContent(subQuestion.questionType, letter)
+    ));
+    const hasOptionAnalysis = Object.values(subQuestion.optionAnalyses || {}).some(isUsableText);
+
+    return (
+      isUsableText(subQuestion.content) ||
+      isUsableText(subQuestion.answer) ||
+      isUsableText(subQuestion.analysis) ||
+      subQuestion.blankAnswers.some(isUsableText) ||
+      hasOptionContent ||
+      hasOptionAnalysis
+    );
+  };
+
+  const deleteRecognitionSubQuestion = (questionId: string, subQuestionId: string) => {
+    updateQuestion(questionId, (currentQuestion) => {
+      if (currentQuestion.subQuestions.length <= 1) return currentQuestion;
+
+      const nextSubQuestions = currentQuestion.subQuestions.filter((currentSubQuestion) => (
+        currentSubQuestion.id !== subQuestionId
+      ));
+
+      return {
+        ...currentQuestion,
+        blankCount: currentQuestion.questionType === 'cloze'
+          ? Math.max(1, nextSubQuestions.length)
+          : currentQuestion.blankCount,
+        subQuestions: nextSubQuestions,
+      };
+    });
+    setRecognitionAddSubMenu(null);
+  };
+
+  const requestDeleteSubQuestion = (
+    question: ReviewQuestion,
+    subQuestion: ReviewQuestion['subQuestions'][number],
+    source: 'recognition' | 'image',
+  ) => {
+    const hasContent = hasSubQuestionUserContent(subQuestion);
+    const shouldConfirm = source === 'recognition'
+      ? hasContent
+      : shouldShowAnswerAnalysis && hasContent;
+
+    if (shouldConfirm) {
+      setPendingSubQuestionDeletion({
+        mode: globalMode,
+        questionId: question.id,
+        source,
+        subQuestionId: subQuestion.id,
+      });
+      return;
+    }
+
+    if (source === 'recognition') {
+      deleteRecognitionSubQuestion(question.id, subQuestion.id);
+      return;
+    }
+
+    deleteImageModeSubQuestion(question.id, subQuestion.id);
+  };
+
+  const handleConfirmDeleteSubQuestion = () => {
+    if (!pendingSubQuestionDeletion) return;
+
+    if (pendingSubQuestionDeletion.source === 'recognition') {
+      deleteRecognitionSubQuestion(pendingSubQuestionDeletion.questionId, pendingSubQuestionDeletion.subQuestionId);
+    } else {
+      deleteImageModeSubQuestion(pendingSubQuestionDeletion.questionId, pendingSubQuestionDeletion.subQuestionId);
+    }
+
+    setPendingSubQuestionDeletion(null);
+  };
+
   const handleGlobalModeChange = (mode: ReviewDisplayMode) => {
     setGlobalMode(mode);
+    setRecognitionAddSubMenu(null);
+    setImageModeAddSubMenu(null);
+    setImageModeTypeMenu(null);
+    setPendingSubQuestionDeletion(null);
     setQuestions((currentQuestions) => currentQuestions.map((question) => ({ ...question, viewMode: mode })));
   };
 
@@ -4270,6 +5426,12 @@ function TabletOcrQuestionReviewPage({
     const pagePrecisionBox = manualLinkTarget && precisionRecognitionBox?.pageNumber === page.pageNumber
       ? precisionRecognitionBox
       : null;
+    const firstRecognizedBoxId = visiblePageBoxes.find((box) => (
+      !pendingReviewBoxIds.has(box.id) && questions.some((question) => question.id === box.id)
+    ))?.id;
+    const firstNewPendingBoxId = visiblePageBoxes.find((box) => (
+      pendingReviewBoxIds.has(box.id) && !questions.some((question) => question.id === box.id)
+    ))?.id;
 
     return (
       <div
@@ -4307,6 +5469,13 @@ function TabletOcrQuestionReviewPage({
             const hasLinkedQuestion = questions.some((question) => question.id === box.id);
             const isActive = hasLinkedQuestion && box.id === activeQuestionId;
             const pendingLabel = hasLinkedQuestion ? '待重新识别' : '待识别';
+            const isFirstRecognizedBox = box.id === firstRecognizedBoxId;
+            const isFirstNewPendingBox = box.id === firstNewPendingBoxId;
+            const boxRequirementAnchor = isFirstRecognizedBox
+              ? 'tablet-review-image.recognized-box'
+              : isFirstNewPendingBox
+                ? 'tablet-review-image.new-box'
+                : undefined;
 
             return (
               <div
@@ -4314,6 +5483,7 @@ function TabletOcrQuestionReviewPage({
                 ref={(node) => {
                   leftBoxRefs.current[box.id] = node;
                 }}
+                data-req-anchor={boxRequirementAnchor}
                 className={`absolute ${
                   isActive
                     ? 'border-2 border-[#23bfb2] bg-[#ddf8f4]/38 shadow-[0_0_0_3px_rgba(35,191,178,0.18)]'
@@ -4335,6 +5505,12 @@ function TabletOcrQuestionReviewPage({
                   width: `${box.width}%`,
                 }}
               >
+                {isFirstRecognizedBox
+                  ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-014', 'left-[30px] top-[-14px] z-50')
+                  : null}
+                {isFirstNewPendingBox
+                  ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-015', 'left-[30px] top-[-14px] z-50')
+                  : null}
                 <button
                   aria-label={box.selected ? '取消选中识别框' : '选中识别框'}
                   className={`absolute left-[4px] top-[4px] flex h-[22px] w-[22px] items-center justify-center rounded-[4px] border text-[13px] font-semibold leading-none shadow-[0_1px_5px_rgba(31,44,58,0.16)] ${
@@ -4442,7 +5618,13 @@ function TabletOcrQuestionReviewPage({
     text: '题' | '选' | '答' | '析',
     target: TabletManualLinkTarget,
     label: string,
-    options: { warning?: boolean; warningTone?: 'strong' | 'muted' } = {},
+    options: {
+      markerClassName?: string;
+      markerRequirementId?: string;
+      reqAnchor?: string;
+      warning?: boolean;
+      warningTone?: 'strong' | 'muted';
+    } = {},
   ) => {
     const isActive = isManualLinkTargetActive(target);
     const isProcessing = isManualLinkTargetProcessing(target);
@@ -4450,34 +5632,42 @@ function TabletOcrQuestionReviewPage({
     const warningTone = options.warningTone || 'strong';
 
     return (
-      <button
-        aria-label={label}
-        className={`relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[8px] border pb-[2px] pl-[7px] text-[18px] font-medium leading-none transition-colors ${
-          isActive
-            ? 'border-[#f28b21] bg-[#fff3e0] text-[#f28b21]'
-            : warning
-              ? 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
-              : 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
-        } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
-        disabled={isProcessing}
-        onClick={(event) => {
-          event.stopPropagation();
-          toggleManualLinkTarget(target);
-        }}
-        type="button"
-      >
-        <span className={warning ? (warningTone === 'muted' ? 'text-[#8f99a3]' : 'text-[#f28b21]') : ''}>
-          {text}
-          {warning ? <span className="ml-[1px]">!</span> : null}
-        </span>
-        <span className={`absolute left-0 top-0 h-[23px] w-[23px] rounded-tl-[7px] [clip-path:polygon(0_0,100%_0,0_100%)] ${
-          isActive ? 'bg-[#ffe5bf]' : 'bg-[#edf1f4]'
-        }`}>
-          <Link2 className={`absolute left-[2px] top-[2px] h-[12px] w-[12px] rotate-[135deg] stroke-[2] ${
-            isActive ? 'text-[#f28b21]' : 'text-[#6f7a85]'
-          }`} />
-        </span>
-      </button>
+      <div className="relative shrink-0" data-req-anchor={options.reqAnchor}>
+        {options.markerRequirementId
+          ? renderReviewQaImageRequirementMarker(
+              options.markerRequirementId,
+              options.markerClassName || 'left-[-8px] top-[-12px] z-40',
+            )
+          : null}
+        <button
+          aria-label={label}
+          className={`relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[8px] border pb-[2px] pl-[7px] text-[18px] font-medium leading-none transition-colors ${
+            isActive
+              ? 'border-[#f28b21] bg-[#fff3e0] text-[#f28b21]'
+              : warning
+                ? 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
+                : 'border-[#cfd6dc] bg-white text-[#58626d] active:border-[#23bfb2] active:text-[#16a69a]'
+          } ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
+          disabled={isProcessing}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleManualLinkTarget(target);
+          }}
+          type="button"
+        >
+          <span className={warning ? (warningTone === 'muted' ? 'text-[#8f99a3]' : 'text-[#f28b21]') : ''}>
+            {text}
+            {warning ? <span className="ml-[1px]">!</span> : null}
+          </span>
+          <span className={`absolute left-0 top-0 h-[23px] w-[23px] rounded-tl-[7px] [clip-path:polygon(0_0,100%_0,0_100%)] ${
+            isActive ? 'bg-[#ffe5bf]' : 'bg-[#edf1f4]'
+          }`}>
+            <Link2 className={`absolute left-[2px] top-[2px] h-[12px] w-[12px] rotate-[135deg] stroke-[2] ${
+              isActive ? 'text-[#f28b21]' : 'text-[#6f7a85]'
+            }`} />
+          </span>
+        </button>
+      </div>
     );
   };
 
@@ -4486,10 +5676,42 @@ function TabletOcrQuestionReviewPage({
     target: TabletManualLinkTarget,
     label: string,
     children: React.ReactNode,
-    options: { warning?: boolean; warningTone?: 'strong' | 'muted' } = {},
+    options: {
+      fieldMarkerClassName?: string;
+      fieldRequirementId?: string;
+      extraFieldMarkerClassName?: string;
+      extraFieldReqAnchor?: string;
+      extraFieldRequirementId?: string;
+      linkMarkerClassName?: string;
+      linkReqAnchor?: string;
+      linkRequirementId?: string;
+      reqAnchor?: string;
+      warning?: boolean;
+      warningTone?: 'strong' | 'muted';
+    } = {},
   ) => (
-    <div className="flex items-start gap-[12px]">
-      {renderFieldLinkBadge(text, target, label, options)}
+    <div className="relative flex items-start gap-[12px]" data-req-anchor={options.reqAnchor}>
+      {options.fieldRequirementId
+        ? renderReviewQaImageRequirementMarker(
+            options.fieldRequirementId,
+            options.fieldMarkerClassName || 'right-[8px] top-[-12px] z-40',
+          )
+        : null}
+      {options.extraFieldRequirementId ? (
+        <span className="relative" data-req-anchor={options.extraFieldReqAnchor}>
+          {renderReviewQaImageRequirementMarker(
+            options.extraFieldRequirementId,
+            options.extraFieldMarkerClassName || 'right-[58px] top-[-12px] z-40',
+          )}
+        </span>
+      ) : null}
+      {renderFieldLinkBadge(text, target, label, {
+        markerClassName: options.linkMarkerClassName,
+        markerRequirementId: options.linkRequirementId,
+        reqAnchor: options.linkReqAnchor,
+        warning: options.warning,
+        warningTone: options.warningTone,
+      })}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
@@ -4679,45 +5901,82 @@ function TabletOcrQuestionReviewPage({
     );
   };
 
-  const renderRecognitionAddSubButton = (question: ReviewQuestion, afterIndex: number) => {
+  const renderRecognitionSubQuestionAddMenu = (
+    question: ReviewQuestion,
+    subQuestion: ReviewQuestion['subQuestions'][number],
+    index: number,
+  ) => {
     const isFixedSingleChoice = isEnglishSubjectName(subject) && (question.questionType === 'reading_comprehension' || question.questionType === 'cloze');
-    const isMenuOpen = recognitionAddSubMenu?.questionId === question.id && recognitionAddSubMenu.afterIndex === afterIndex;
-    const isCompoundQuestion = canAddReviewSubQuestions(question.questionType, subject);
+    const isMenuOpen = recognitionAddSubMenu?.questionId === question.id && recognitionAddSubMenu.subQuestionId === subQuestion.id;
+    const subQuestionTypeOptions = reviewQuestionTypeOptions.filter((option) => !canAddReviewSubQuestions(option.value, subject));
+    const openPlacementMenu = () => {
+      setRecognitionAddSubMenu(isMenuOpen ? null : {
+        afterIndex: index,
+        questionId: question.id,
+        subQuestionId: subQuestion.id,
+      });
+    };
+    const selectPlacement = (placement: 'before' | 'after') => {
+      setRecognitionAddSubMenu({
+        afterIndex: placement === 'before' ? index - 1 : index,
+        placement,
+        questionId: question.id,
+        subQuestionId: subQuestion.id,
+      });
+    };
 
     return (
-      <div className="relative flex items-center justify-start gap-[14px] pb-[12px] pt-[2px]" onClick={(event) => event.stopPropagation()}>
+      <div className="relative" onClick={(event) => event.stopPropagation()}>
         <button
-          className="inline-flex h-[44px] items-center gap-[8px] rounded-[6px] border border-[#c9ced3] bg-white px-[16px] text-[20px] leading-none text-[#4d5258] active:bg-[#f4f6f7]"
+          aria-label="添加子题"
+          className={`flex h-[38px] w-[38px] items-center justify-center rounded-full active:bg-[#e6faf7] disabled:text-[#b8c0c8] ${
+            isMenuOpen ? 'text-[#23bfb2]' : 'text-[#7b8085]'
+          }`}
           onClick={() => {
             if (isFixedSingleChoice) {
-              insertRecognitionSubQuestion(question.id, afterIndex, 'single_choice');
+              insertRecognitionSubQuestion(question.id, index, 'single_choice');
               return;
             }
-            setRecognitionAddSubMenu(isMenuOpen ? null : { questionId: question.id, afterIndex });
+            openPlacementMenu();
           }}
           type="button"
         >
-          <Plus className="h-[22px] w-[22px] stroke-[2.4]" />
-          子题
+          <CirclePlus className="h-[20px] w-[20px] stroke-[2.4]" />
         </button>
-        <span className="flex h-[24px] w-[24px] items-center justify-center rounded-full bg-[#b7bbc0] text-[18px] font-semibold leading-none text-white">
-          !
-        </span>
-        <span className="text-[20px] leading-none text-[#8b8f95]">
-          {isCompoundQuestion ? '请核对子题信息' : '添加后转为大题结构'}
-        </span>
         {isMenuOpen && !isFixedSingleChoice ? (
-          <div className="absolute left-0 top-[52px] z-30 w-[188px] overflow-hidden rounded-[9px] border border-[#dfe4e8] bg-white shadow-[0_14px_32px_rgba(31,44,58,0.18)]">
-            {reviewQuestionTypeOptions.map((option) => (
-              <button
-                key={option.value}
-                className="h-[46px] w-full px-[18px] text-left text-[20px] leading-none text-[#4d5258] active:bg-[#f3f5f6]"
-                onClick={() => insertRecognitionSubQuestion(question.id, afterIndex, option.value)}
-                type="button"
-              >
-                {option.label.replace('题', '')}
-              </button>
-            ))}
+          <div className="absolute right-[42px] top-[36px] z-40 flex items-start rounded-[8px] text-[18px] leading-none text-[#343a40] shadow-[0_16px_38px_rgba(31,44,58,0.18)]">
+            <div className="w-[186px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px]">
+              {[
+                { value: 'before' as const, label: '在上方添加子题' },
+                { value: 'after' as const, label: '在下方添加子题' },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  className={`flex h-[44px] w-full items-center justify-between gap-[8px] whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6] ${
+                    recognitionAddSubMenu?.placement === item.value ? 'text-[#23bfb2]' : ''
+                  }`}
+                  onClick={() => selectPlacement(item.value)}
+                  type="button"
+                >
+                  <span>{item.label}</span>
+                  <ChevronDown className="h-[18px] w-[18px] -rotate-90 stroke-[2.4]" />
+                </button>
+              ))}
+            </div>
+            {recognitionAddSubMenu?.placement ? (
+              <div className="ml-[4px] w-[92px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px]">
+                {subQuestionTypeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    className="h-[42px] w-full whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6]"
+                    onClick={() => insertRecognitionSubQuestion(question.id, recognitionAddSubMenu.afterIndex, option.value)}
+                    type="button"
+                  >
+                    {option.label.replace('题', '')}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -4776,24 +6035,22 @@ function TabletOcrQuestionReviewPage({
               </label>
             )}
           </div>
-          <button
-            aria-label="删除子题"
-            className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-[#7b8085] active:bg-[#eceff1] active:text-[#d84a4a]"
-            disabled={readOnly}
-            onClick={(event) => {
-              event.stopPropagation();
-              updateQuestion(question.id, (currentQuestion) => ({
-                ...currentQuestion,
-                blankCount: currentQuestion.questionType === 'cloze'
-                  ? Math.max(1, currentQuestion.subQuestions.length - 1)
-                  : currentQuestion.blankCount,
-                subQuestions: currentQuestion.subQuestions.filter((currentSubQuestion) => currentSubQuestion.id !== subQuestion.id),
-              }));
-            }}
-            type="button"
-          >
-            <Trash2 className="h-[20px] w-[20px]" />
-          </button>
+          <div className="flex items-center gap-[4px]">
+            {renderRecognitionSubQuestionAddMenu(question, subQuestion, index)}
+            {question.subQuestions.length > 1 ? (
+              <button
+                aria-label="删除子题"
+                className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-[#7b8085] active:bg-[#eceff1] active:text-[#d84a4a]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestDeleteSubQuestion(question, subQuestion, 'recognition');
+                }}
+                type="button"
+              >
+                <Trash2 className="h-[20px] w-[20px]" />
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {question.questionType !== 'cloze' ? (
@@ -4867,6 +6124,8 @@ function TabletOcrQuestionReviewPage({
                 <CountStepper
                   label="选项数"
                   disabled={readOnly}
+                  max={26}
+                  min={2}
                   onChange={(value) => {
                     updateQuestion(question.id, (currentQuestion) => ({
                       ...currentQuestion,
@@ -4987,6 +6246,7 @@ function TabletOcrQuestionReviewPage({
     onBlankChange: (index: number, value: string) => void,
     isProcessing: boolean,
     readOnly = false,
+    options: { blankAnswerMarker?: React.ReactNode } = {},
   ) => {
     if (isProcessing) return renderFieldLoading('答案识别中...');
     if (isChoiceLikeQuestionType(entity.questionType)) {
@@ -4994,7 +6254,12 @@ function TabletOcrQuestionReviewPage({
     }
     if (entity.questionType === 'fill_blank') {
       return (
-        <div className="space-y-[12px]" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="relative space-y-[12px]"
+          data-req-anchor={options.blankAnswerMarker ? 'tablet-review-qa-image.blank-answers' : undefined}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {options.blankAnswerMarker}
           {createBlankAnswers(entity.blankCount, entity.blankAnswers).map((value, index) => (
             <label key={index} className="flex items-center gap-[12px]">
               <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full border border-[#b6bec6] text-[20px] leading-none text-[#5c6166]">
@@ -5042,59 +6307,95 @@ function TabletOcrQuestionReviewPage({
     )
   );
 
-  const renderParentAnswerAnalysis = (question: ReviewQuestion, options: { hideAnswer?: boolean; hideAnalysis?: boolean; readOnly?: boolean } = {}) => (
-    <div className="mt-[22px] space-y-[18px]">
-      {!options.hideAnswer ? (
-        <div>
-          {renderLinkedFieldRow(
-            '答',
-            { questionId: question.id, field: 'answer' },
-            '关联答案',
-            renderAnswerInput(
-              question,
-              (value) => updateQuestion(question.id, (currentQuestion) => applyAnswerValue(currentQuestion, value)),
-              (index, value) => updateQuestion(question.id, (currentQuestion) => {
-                const nextBlankAnswers = createBlankAnswers(currentQuestion.blankCount, currentQuestion.blankAnswers);
-                nextBlankAnswers[index] = value;
-                return { ...currentQuestion, blankAnswers: nextBlankAnswers, answer: nextBlankAnswers.filter(Boolean).join('；') };
-              }),
-              isManualLinkTargetProcessing({ questionId: question.id, field: 'answer' }),
-              options.readOnly,
-            ),
-            { warning: !hasQuestionAnswer(question) },
-          )}
-        </div>
-      ) : null}
-      {!options.hideAnalysis ? (
-        <div>
-          {renderLinkedFieldRow(
-            '析',
-            { questionId: question.id, field: 'analysis' },
-            '关联解析',
-            renderAnalysisInput(
-              question.analysis,
-              (value) => updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, analysis: value })),
-              isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis' }),
-              options.readOnly,
-            ),
-            { warning: !isUsableText(question.analysis), warningTone: 'muted' },
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
+  const renderParentAnswerAnalysis = (question: ReviewQuestion, options: { hideAnswer?: boolean; hideAnalysis?: boolean; readOnly?: boolean } = {}) => {
+    const shouldShowQaMarkers = shouldShowAnswerAnalysis && questions.findIndex((item) => item.id === question.id) === 0;
+    const firstFillBlankAnswerQuestionId = questions.find((item) => item.questionType === 'fill_blank')?.id;
+    const shouldShowBlankAnswerMarker = shouldShowAnswerAnalysis && question.id === firstFillBlankAnswerQuestionId;
+
+    return (
+      <div className="mt-[22px] space-y-[18px]">
+        {!options.hideAnswer ? (
+          <div>
+            {renderLinkedFieldRow(
+              '答',
+              { questionId: question.id, field: 'answer' },
+              '关联答案',
+              renderAnswerInput(
+                question,
+                (value) => updateQuestion(question.id, (currentQuestion) => applyAnswerValue(currentQuestion, value)),
+                (index, value) => updateQuestion(question.id, (currentQuestion) => {
+                  const nextBlankAnswers = createBlankAnswers(currentQuestion.blankCount, currentQuestion.blankAnswers);
+                  nextBlankAnswers[index] = value;
+                  return { ...currentQuestion, blankAnswers: nextBlankAnswers, answer: nextBlankAnswers.filter(Boolean).join('；') };
+                }),
+                isManualLinkTargetProcessing({ questionId: question.id, field: 'answer' }),
+                options.readOnly,
+                {
+                  blankAnswerMarker: shouldShowBlankAnswerMarker
+                    ? renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-013', 'right-[-14px] top-[-14px] z-40')
+                    : null,
+                },
+              ),
+              {
+                fieldRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-004' : undefined,
+                linkReqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.answer-link-icon' : undefined,
+                linkRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-006' : undefined,
+                reqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.parent-answer' : undefined,
+                warning: !hasQuestionAnswer(question),
+              },
+            )}
+          </div>
+        ) : null}
+        {!options.hideAnalysis ? (
+          <div>
+            {renderLinkedFieldRow(
+              '析',
+              { questionId: question.id, field: 'analysis' },
+              '关联解析',
+              renderAnalysisInput(
+                question.analysis,
+                (value) => updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, analysis: value })),
+                isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis' }),
+                options.readOnly,
+              ),
+              {
+                fieldRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-005' : undefined,
+                linkReqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.analysis-link-icon' : undefined,
+                linkRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-007' : undefined,
+                reqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.parent-analysis' : undefined,
+                warning: !isUsableText(question.analysis),
+                warningTone: 'muted',
+              },
+            )}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   const renderSubQuestionAnswerAnalysis = (
     question: ReviewQuestion,
     subQuestion: ReviewQuestion['subQuestions'][number],
     options: { hideAnalysis?: boolean; hideAnswerConfig?: boolean; readOnly?: boolean } = {},
-  ) => (
-    <div className="mt-[16px] space-y-[16px]">
+  ) => {
+    const firstCompoundQuestionId = questions.find((item) => (
+      canAddReviewSubQuestions(item.questionType, subject) && item.subQuestions.length > 0
+    ))?.id;
+    const shouldShowQaMarkers =
+      shouldShowAnswerAnalysis &&
+      question.id === firstCompoundQuestionId &&
+      question.subQuestions.findIndex((item) => item.id === subQuestion.id) === 0;
+    const shouldShowBlankAnswerMarker = shouldShowQaMarkers && subQuestion.questionType === 'fill_blank';
+
+    return (
+      <div className="mt-[16px] space-y-[16px]">
       {!options.hideAnswerConfig && (subQuestion.questionType === 'single_choice' || subQuestion.questionType === 'multiple_choice') ? (
         <div onClick={(event) => event.stopPropagation()}>
           <CountStepper
             disabled={options.readOnly}
             label="选项数"
+            max={26}
+            min={2}
             onChange={(value) => updateQuestion(question.id, (currentQuestion) => ({
               ...currentQuestion,
               subQuestions: currentQuestion.subQuestions.map((currentSubQuestion) => (
@@ -5132,10 +6433,10 @@ function TabletOcrQuestionReviewPage({
         </div>
       ) : null}
       <div>
-        {renderLinkedFieldRow(
-          '答',
-          { questionId: question.id, field: 'answer', subQuestionId: subQuestion.id },
-          '关联答案',
+          {renderLinkedFieldRow(
+            '答',
+            { questionId: question.id, field: 'answer', subQuestionId: subQuestion.id },
+            '关联答案',
           renderAnswerInput(
             subQuestion,
             (value) => updateQuestion(question.id, (currentQuestion) => ({
@@ -5155,8 +6456,19 @@ function TabletOcrQuestionReviewPage({
             })),
             isManualLinkTargetProcessing({ questionId: question.id, field: 'answer', subQuestionId: subQuestion.id }),
             options.readOnly,
+            {
+              blankAnswerMarker: shouldShowBlankAnswerMarker
+                ? renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-013', 'right-[-14px] top-[-14px] z-40')
+                : null,
+            },
           ),
-          { warning: !hasQuestionAnswer(subQuestion) },
+          {
+            fieldRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-015' : undefined,
+            linkReqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.answer-link-icon' : undefined,
+            linkRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-006' : undefined,
+            reqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.sub-answer' : undefined,
+            warning: !hasQuestionAnswer(subQuestion),
+          },
         )}
       </div>
       {!options.hideAnalysis ? (
@@ -5176,12 +6488,20 @@ function TabletOcrQuestionReviewPage({
               isManualLinkTargetProcessing({ questionId: question.id, field: 'analysis', subQuestionId: subQuestion.id }),
               options.readOnly,
             ),
-            { warning: !isUsableText(subQuestion.analysis), warningTone: 'muted' },
+            {
+              fieldRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-016' : undefined,
+              linkReqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.analysis-link-icon' : undefined,
+              linkRequirementId: shouldShowQaMarkers ? 'TABLET_REVIEW_QA_IMAGE-007' : undefined,
+              reqAnchor: shouldShowQaMarkers ? 'tablet-review-qa-image.sub-analysis' : undefined,
+              warning: !isUsableText(subQuestion.analysis),
+              warningTone: 'muted',
+            },
           )}
         </div>
       ) : null}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const updateImageModeSubQuestionType = (questionId: string, subQuestionId: string, value: ReviewQuestionType) => {
     updateQuestion(questionId, (currentQuestion) => ({
@@ -5211,63 +6531,188 @@ function TabletOcrQuestionReviewPage({
     }));
   };
 
+  const renderImageModeSubQuestionAddMenu = (
+    question: ReviewQuestion,
+    subQuestion: ReviewQuestion['subQuestions'][number],
+  ) => {
+    if (question.questionType === 'cloze') {
+      return null;
+    }
+
+    const currentMenu = imageModeAddSubMenu;
+    const isOpen = currentMenu?.questionId === question.id && currentMenu.subQuestionId === subQuestion.id;
+    const subQuestionTypeOptions = getImageModeSubQuestionOptions();
+    const openPlacementMenu = () => {
+      setImageModeTypeMenu(null);
+      setImageModeAddSubMenu(isOpen ? null : { questionId: question.id, subQuestionId: subQuestion.id });
+    };
+    const selectPlacement = (placement: 'before' | 'after') => {
+      setImageModeAddSubMenu({ questionId: question.id, subQuestionId: subQuestion.id, placement });
+    };
+
+    return (
+      <div className="relative">
+        <button
+          aria-label="添加子题"
+          className={`flex h-[38px] w-[38px] items-center justify-center rounded-full active:bg-[#e6faf7] ${
+            isOpen ? 'text-[#23bfb2]' : 'text-[#7b8085]'
+          }`}
+          onClick={(event) => {
+            event.stopPropagation();
+            openPlacementMenu();
+          }}
+          type="button"
+        >
+          <CirclePlus className="h-[20px] w-[20px] stroke-[2.4]" />
+        </button>
+        {isOpen ? (
+          <div className="absolute right-[42px] top-[36px] z-40 flex items-start rounded-[8px] text-[18px] leading-none text-[#343a40] shadow-[0_16px_38px_rgba(31,44,58,0.18)]">
+            <div className="w-[186px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px]">
+              {[
+                { value: 'before' as const, label: '在上方添加子题' },
+                { value: 'after' as const, label: '在下方添加子题' },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  className={`flex h-[44px] w-full items-center justify-between gap-[8px] whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6] ${
+                    currentMenu?.placement === item.value ? 'text-[#23bfb2]' : ''
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    selectPlacement(item.value);
+                  }}
+                  type="button"
+                >
+                  <span>{item.label}</span>
+                  <ChevronDown className="h-[18px] w-[18px] -rotate-90 stroke-[2.4]" />
+                </button>
+              ))}
+            </div>
+            {currentMenu?.placement ? (
+              <div className="ml-[4px] w-[92px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px]">
+                {subQuestionTypeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    className="h-[42px] w-full whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      insertImageModeSubQuestion(question.id, subQuestion.id, currentMenu.placement!, option.value);
+                    }}
+                    type="button"
+                  >
+                    {option.label.replace('题', '')}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderImageModeSubQuestionHeader = (
     question: ReviewQuestion,
     subQuestion: ReviewQuestion['subQuestions'][number],
     index: number,
     options: { fixedSingleChoice?: boolean; readOnly?: boolean } = {},
-  ) => (
-    <div className="mb-[12px] flex items-center justify-between gap-[12px]">
-      <div className="flex items-center gap-[12px]">
-        <span className="text-[22px] font-semibold leading-none text-[#202124]">（{index + 1}）</span>
-        {options.fixedSingleChoice ? (
-          <span className="inline-flex h-[34px] items-center rounded-[6px] bg-[#eceff1] px-[14px] text-[18px] leading-none text-[#5c6166]">
-            单选
-          </span>
-        ) : (
-          <label className="relative inline-flex h-[34px] min-w-[104px] items-center rounded-[6px] bg-[#eceff1] pl-[14px] pr-[36px] text-[18px] leading-none text-[#5c6166]">
-            <select
-              aria-label="子题题型"
-              className="absolute inset-0 cursor-pointer opacity-0"
-              disabled={options.readOnly}
-              onChange={(event) => updateImageModeSubQuestionType(question.id, subQuestion.id, event.target.value as ReviewQuestionType)}
-              value={subQuestion.questionType}
+  ) => {
+    const typeMenuOpen = imageModeTypeMenu?.questionId === question.id && imageModeTypeMenu.subQuestionId === subQuestion.id;
+    const subQuestionTypeOptions = getImageModeSubQuestionOptions();
+
+    return (
+      <div className="mb-[12px] flex items-center justify-between gap-[12px]">
+        <div className="flex items-center gap-[12px]">
+          <span className="text-[22px] font-semibold leading-none text-[#202124]">（{index + 1}）</span>
+          {options.fixedSingleChoice ? (
+            <span className="inline-flex h-[34px] items-center rounded-[6px] bg-[#eceff1] px-[14px] text-[18px] leading-none text-[#5c6166]">
+              单选
+            </span>
+          ) : (
+            <div className="relative">
+              <button
+                aria-label="子题题型"
+                className="inline-flex h-[34px] min-w-[104px] items-center justify-between gap-[10px] rounded-[6px] bg-[#eceff1] pl-[14px] pr-[10px] text-[18px] leading-none text-[#5c6166] active:text-[#23bfb2] disabled:text-[#a7adb3]"
+                disabled={options.readOnly}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setImageModeAddSubMenu(null);
+                  setImageModeTypeMenu((current) => (
+                    current?.questionId === question.id && current.subQuestionId === subQuestion.id
+                      ? null
+                      : { questionId: question.id, subQuestionId: subQuestion.id }
+                  ));
+                }}
+                type="button"
+              >
+                <span>{getReviewQuestionTypeLabel(subQuestion.questionType).replace('题', '')}</span>
+                <ChevronDown className="h-[22px] w-[22px] shrink-0 stroke-[2.4] text-[#555b61]" />
+              </button>
+              {typeMenuOpen && !options.readOnly ? (
+                <div className="absolute left-0 top-[40px] z-50 w-[118px] overflow-hidden rounded-[8px] border border-[#e3e7eb] bg-white py-[6px] text-[18px] leading-none text-[#343a40] shadow-[0_16px_38px_rgba(31,44,58,0.18)]">
+                  {subQuestionTypeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`h-[42px] w-full whitespace-nowrap px-[18px] text-left active:bg-[#f3f5f6] ${
+                        subQuestion.questionType === option.value ? 'text-[#23bfb2]' : ''
+                      }`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        updateImageModeSubQuestionType(question.id, subQuestion.id, option.value);
+                        setImageModeTypeMenu(null);
+                      }}
+                      type="button"
+                    >
+                      {option.label.replace('题', '')}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-[4px]">
+          {renderImageModeSubQuestionAddMenu(question, subQuestion)}
+          {question.subQuestions.length > 1 ? (
+            <button
+              aria-label="删除子题"
+              className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-[#7b8085] active:bg-[#eceff1] active:text-[#d84a4a]"
+              onClick={(event) => {
+                event.stopPropagation();
+                requestDeleteSubQuestion(question, subQuestion, 'image');
+              }}
+              type="button"
             >
-              {reviewQuestionTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label.replace('题', '')}
-                </option>
-              ))}
-            </select>
-            <span>{getReviewQuestionTypeLabel(subQuestion.questionType).replace('题', '')}</span>
-            <ChevronDown className="absolute right-[10px] top-1/2 h-[22px] w-[22px] -translate-y-1/2 stroke-[2.4] text-[#555b61]" />
-          </label>
-        )}
+              <Trash2 className="h-[20px] w-[20px]" />
+            </button>
+          ) : null}
+        </div>
       </div>
-      <button
-        aria-label="删除子题"
-        className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-[#7b8085] active:bg-[#eceff1] active:text-[#d84a4a]"
-        disabled={options.readOnly}
-        onClick={(event) => {
-          event.stopPropagation();
-          deleteImageModeSubQuestion(question.id, subQuestion.id);
-        }}
-        type="button"
-      >
-        <Trash2 className="h-[20px] w-[20px]" />
-      </button>
-    </div>
-  );
+    );
+  };
 
   const renderImageModeAnswerAnalysis = (question: ReviewQuestion, readOnly = false) => {
     if (!shouldShowAnswerAnalysis) return null;
     const isEnglishSubject = isEnglishSubjectName(subject);
+    const firstCompoundQuestionId = questions.find((item) => (
+      item.viewMode === 'image' &&
+      canAddReviewSubQuestions(item.questionType, subject) &&
+      item.subQuestions.length > 0
+    ))?.id;
+    const shouldShowQaSubQuestionStructureMarker = question.id === firstCompoundQuestionId;
 
-    if (question.questionType === 'material' || (isEnglishSubject && question.questionType === 'reading_comprehension')) {
+    if (canAddReviewSubQuestions(question.questionType, subject) && question.questionType !== 'cloze') {
       return (
         <div className="mt-[22px] space-y-[16px]">
           {question.subQuestions.map((subQuestion, index) => (
-            <div key={subQuestion.id} className="rounded-[8px] bg-[#f7f8f9] px-[18px] py-[18px]">
+            <div
+              key={subQuestion.id}
+              className="relative rounded-[8px] bg-[#f7f8f9] px-[18px] py-[18px]"
+              data-req-anchor={shouldShowQaSubQuestionStructureMarker && index === 0 ? 'tablet-review-qa-image.subquestions' : undefined}
+            >
+              {shouldShowQaSubQuestionStructureMarker && index === 0
+                ? renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-022', 'left-[12px] top-[-12px] z-40')
+                : null}
               {renderImageModeSubQuestionHeader(question, subQuestion, index, { fixedSingleChoice: isEnglishSubject && question.questionType === 'reading_comprehension', readOnly })}
               {renderSubQuestionAnswerAnalysis(question, subQuestion, { readOnly })}
             </div>
@@ -5280,7 +6725,14 @@ function TabletOcrQuestionReviewPage({
       return (
         <div className="mt-[22px] space-y-[16px]">
           {question.subQuestions.map((subQuestion, index) => (
-            <div key={subQuestion.id} className="rounded-[8px] bg-[#f7f8f9] px-[18px] py-[18px]">
+            <div
+              key={subQuestion.id}
+              className="relative rounded-[8px] bg-[#f7f8f9] px-[18px] py-[18px]"
+              data-req-anchor={shouldShowQaSubQuestionStructureMarker && index === 0 ? 'tablet-review-qa-image.subquestions' : undefined}
+            >
+              {shouldShowQaSubQuestionStructureMarker && index === 0
+                ? renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-022', 'left-[12px] top-[-12px] z-40')
+                : null}
               {renderImageModeSubQuestionHeader(question, subQuestion, index, { fixedSingleChoice: true, readOnly })}
               {renderSubQuestionAnswerAnalysis(question, subQuestion, { hideAnalysis: true, hideAnswerConfig: true, readOnly })}
             </div>
@@ -5298,10 +6750,35 @@ function TabletOcrQuestionReviewPage({
     const isCloze = isEnglishSubject && question.questionType === 'cloze';
     const isCompound = canAddReviewSubQuestions(question.questionType, subject);
     const showSubQuestionAction = shouldShowReviewSubQuestionAction(question.questionType);
+    const isFirstQuestion = questions.findIndex((item) => item.id === question.id) === 0;
+    const firstChoiceQuestionId = questions.find((item) => isChoiceLikeQuestionType(item.questionType))?.id;
+    const firstFillBlankQuestionId = questions.find((item) => item.questionType === 'fill_blank')?.id;
+    const firstCompoundQuestionId = questions.find((item) => (
+      canAddReviewSubQuestions(item.questionType, subject) || shouldShowReviewSubQuestionAction(item.questionType)
+    ))?.id;
+    const shouldShowQaRecognitionStemMarker = shouldShowAnswerAnalysis && globalMode === 'recognition' && isFirstQuestion;
+    const shouldShowRecognitionStemMarker = !shouldShowQaRecognitionStemMarker && isFirstQuestion;
+    const shouldShowRecognitionOptionsMarker = question.id === firstChoiceQuestionId;
+    const shouldShowRecognitionFillBlankMarker = question.id === firstFillBlankQuestionId;
+    const shouldShowRecognitionSubQuestionsMarker = question.id === firstCompoundQuestionId;
 
     return (
-      <div className="space-y-[18px] rounded-[8px] border border-[#e0e5e9] bg-white p-[18px]">
-        <div>
+      <div className="relative space-y-[18px] rounded-[8px] border border-[#e0e5e9] bg-white p-[18px]">
+        <div
+          className="relative"
+          data-req-anchor={
+            shouldShowQaRecognitionStemMarker
+              ? 'tablet-review-qa-recognition.stem'
+              : shouldShowRecognitionStemMarker
+                ? 'tablet-review-recognition.stem'
+                : undefined
+          }
+        >
+          {shouldShowQaRecognitionStemMarker
+            ? renderReviewQaRecognitionRequirementMarker('TABLET_REVIEW_QA_RECOGNITION-001', 'left-[-8px] top-[-12px] z-40')
+            : shouldShowRecognitionStemMarker
+              ? renderReviewRecognitionRequirementMarker('TABLET_REVIEW_RECOGNITION-002', 'left-[-8px] top-[-12px] z-40')
+              : null}
           {renderLinkedFieldRow(
             '题',
             { questionId: question.id, field: 'content' },
@@ -5348,13 +6825,21 @@ function TabletOcrQuestionReviewPage({
         </div>
 
         {isChoiceLikeQuestionType(question.questionType) ? (
-          <div>
+          <div
+            className="relative"
+            data-req-anchor={shouldShowRecognitionOptionsMarker ? 'tablet-review-recognition.options' : undefined}
+          >
+            {shouldShowRecognitionOptionsMarker
+              ? renderReviewRecognitionRequirementMarker('TABLET_REVIEW_RECOGNITION-003', 'right-[8px] top-[-12px] z-40')
+              : null}
             {question.questionType !== 'judge' ? (
               <div className="mb-[12px] flex items-center gap-[12px]" onClick={(event) => event.stopPropagation()}>
                 {renderOptionLinkPill({ questionId: question.id, field: 'optionContent' })}
                 <CountStepper
                   disabled={readOnly}
                   label="选项数"
+                  max={26}
+                  min={2}
                   onChange={(value) => {
                     updateQuestion(question.id, (currentQuestion) => ({
                       ...currentQuestion,
@@ -5413,6 +6898,8 @@ function TabletOcrQuestionReviewPage({
             <CountStepper
               disabled={readOnly}
               label="选项数"
+              max={26}
+              min={2}
               onChange={(value) => {
                 updateQuestion(question.id, (currentQuestion) => ({
                   ...currentQuestion,
@@ -5429,9 +6916,25 @@ function TabletOcrQuestionReviewPage({
           </div>
         ) : null}
 
+        {question.questionType === 'fill_blank' ? (
+          <div
+            className="absolute left-[16px] top-[60px]"
+            data-req-anchor={shouldShowRecognitionFillBlankMarker ? 'tablet-review-recognition.fill-blank' : undefined}
+          >
+            {shouldShowRecognitionFillBlankMarker
+              ? renderReviewRecognitionRequirementMarker('TABLET_REVIEW_RECOGNITION-004', 'left-0 top-0 z-40')
+              : null}
+          </div>
+        ) : null}
+
         {isCompound || showSubQuestionAction ? (
-          <div className="space-y-[4px]">
-            {question.questionType !== 'cloze' && showSubQuestionAction ? renderRecognitionAddSubButton(question, question.subQuestions.length - 1) : null}
+          <div
+            className="relative space-y-[4px]"
+            data-req-anchor={shouldShowRecognitionSubQuestionsMarker ? 'tablet-review-recognition.subquestions' : undefined}
+          >
+            {shouldShowRecognitionSubQuestionsMarker
+              ? renderReviewRecognitionRequirementMarker('TABLET_REVIEW_RECOGNITION-005', 'right-[8px] top-[-12px] z-40')
+              : null}
             {question.subQuestions.map((subQuestion, index) => (
               <div key={subQuestion.id}>
                 {renderRecognitionSubQuestion(question, subQuestion, index, readOnly)}
@@ -5476,6 +6979,17 @@ function TabletOcrQuestionReviewPage({
     const isCropEditing = editingCropQuestionId === question.id;
     const isQuestionEditing = editingQuestionId === question.id;
     const isQuestionRecognizing = recognizingReviewBoxIds.has(question.id);
+    const shouldShowCardRequirementMarker = questions.findIndex((item) => item.id === question.id) === 0;
+    const firstImageModeCompoundQuestionId = questions.find((item) => (
+      item.viewMode === 'image' && canAddReviewSubQuestions(item.questionType, subject)
+    ))?.id;
+    const shouldShowRecognitionQuestionTypeMarker =
+      shouldShowCardRequirementMarker && mode === 'questions_only' && question.viewMode === 'recognition';
+    const shouldShowImageSubQuestionMarker =
+      mode === 'questions_only' &&
+      question.id === firstImageModeCompoundQuestionId &&
+      question.viewMode === 'image' &&
+      canAddReviewSubQuestions(question.questionType, subject);
     const questionImageData = isCropEditing
       ? question.croppedImageData
       : question.userCroppedImageData || question.croppedImageData;
@@ -5491,107 +7005,156 @@ function TabletOcrQuestionReviewPage({
         onClick={() => handleSelectQuestion(question.id)}
       >
         <header className="flex h-[74px] items-center justify-between border-b border-[#edf0f2] px-[24px]">
-          <div className={isQuestionEditing ? '' : 'pointer-events-none'}>
-            <QuestionTypeSelect
-              onChange={(value) => {
-                updateQuestion(question.id, (currentQuestion) => {
-                  const existingSubQuestions = currentQuestion.subQuestions || [];
-                  const nextSubQuestions = (() => {
-                    if (value === 'cloze') {
-                      return buildSubQuestionsFromContent(currentQuestion.id, 'cloze', currentQuestion.content, currentQuestion.blankCount);
-                    }
-                    if (value === 'reading_comprehension') {
-                      return existingSubQuestions.length > 0
-                        ? existingSubQuestions.map((subQuestion) => ({
-                            ...subQuestion,
-                            optionContents: buildOptionContents('single_choice', Math.max(4, subQuestion.optionCount), subQuestion.optionContents || {}),
-                            optionCount: Math.max(4, subQuestion.optionCount),
-                            questionType: 'single_choice' as ReviewQuestionType,
-                          }))
-                        : [createReviewSubQuestion(currentQuestion.id, 0, 'single_choice', { optionCount: 4 })];
-                    }
-                    if (canAddReviewSubQuestions(value, subject)) {
-                      return existingSubQuestions.length > 0
-                        ? existingSubQuestions
-                        : [createReviewSubQuestion(currentQuestion.id, 0, 'short_answer')];
-                    }
-                    return [];
-                  })();
-                  const inlineBlankCount = countInlineBlanks(currentQuestion.content);
+          <div
+            className="relative"
+            data-req-anchor={
+              shouldShowRecognitionQuestionTypeMarker
+                ? 'tablet-review-recognition.type-structure'
+                : shouldShowCardRequirementMarker
+                  ? 'tablet-review-image.question-type'
+                  : undefined
+            }
+          >
+            {shouldShowCardRequirementMarker
+              ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-009', 'right-[-16px] top-[-14px] z-40')
+              : null}
+            {shouldShowRecognitionQuestionTypeMarker
+              ? renderReviewRecognitionRequirementMarker('TABLET_REVIEW_RECOGNITION-006', 'right-[-16px] top-[-14px] z-40')
+              : null}
+            <div className={isQuestionEditing ? '' : 'pointer-events-none'}>
+              <QuestionTypeSelect
+                onChange={(value) => {
+                  updateQuestion(question.id, (currentQuestion) => {
+                    const existingSubQuestions = currentQuestion.subQuestions || [];
+                    const nextSubQuestions = (() => {
+                      if (value === 'cloze') {
+                        return buildSubQuestionsFromContent(currentQuestion.id, 'cloze', currentQuestion.content, currentQuestion.blankCount);
+                      }
+                      if (value === 'reading_comprehension') {
+                        return existingSubQuestions.length > 0
+                          ? existingSubQuestions.map((subQuestion) => ({
+                              ...subQuestion,
+                              optionContents: buildOptionContents('single_choice', Math.max(4, subQuestion.optionCount), subQuestion.optionContents || {}),
+                              optionCount: Math.max(4, subQuestion.optionCount),
+                              questionType: 'single_choice' as ReviewQuestionType,
+                            }))
+                          : [createReviewSubQuestion(currentQuestion.id, 0, 'single_choice', { optionCount: 4 })];
+                      }
+                      if (canAddReviewSubQuestions(value, subject)) {
+                        return existingSubQuestions.length > 0
+                          ? existingSubQuestions
+                          : [createReviewSubQuestion(currentQuestion.id, 0, 'short_answer')];
+                      }
+                      return [];
+                    })();
+                    const inlineBlankCount = countInlineBlanks(currentQuestion.content);
 
-                  return {
-                    ...currentQuestion,
-                    blankAnswers: value === 'fill_blank'
-                      ? createBlankAnswers(inlineBlankCount, currentQuestion.blankAnswers)
-                      : currentQuestion.blankAnswers,
-                    blankCount: value === 'fill_blank'
-                      ? inlineBlankCount
-                      : value === 'cloze'
-                        ? Math.max(1, currentQuestion.blankCount)
-                        : currentQuestion.blankCount,
-                    content: currentQuestion.content || '',
-                    optionContents: isChoiceLikeQuestionType(value)
-                      ? buildOptionContents(value, getDefaultOptionCount(value, currentQuestion.optionCount), currentQuestion.optionContents || {})
-                      : {},
-                    optionCount: value === 'cloze' || value === 'reading_comprehension'
-                      ? Math.max(4, currentQuestion.optionCount)
-                      : isChoiceLikeQuestionType(value)
-                        ? getDefaultOptionCount(value, currentQuestion.optionCount)
-                        : currentQuestion.optionCount,
-                    questionType: value,
-                    questionTypeStatus: 'manual',
-                    subQuestions: nextSubQuestions,
-                  };
-                });
-              }}
-              options={reviewQuestionTypeOptions}
-              status={question.questionTypeStatus}
-              value={question.questionType}
-            />
+                    return {
+                      ...currentQuestion,
+                      blankAnswers: value === 'fill_blank'
+                        ? createBlankAnswers(inlineBlankCount, currentQuestion.blankAnswers)
+                        : currentQuestion.blankAnswers,
+                      blankCount: value === 'fill_blank'
+                        ? inlineBlankCount
+                        : value === 'cloze'
+                          ? Math.max(1, currentQuestion.blankCount)
+                          : currentQuestion.blankCount,
+                      content: currentQuestion.content || '',
+                      optionContents: isChoiceLikeQuestionType(value)
+                        ? buildOptionContents(value, getDefaultOptionCount(value, currentQuestion.optionCount), currentQuestion.optionContents || {})
+                        : {},
+                      optionCount: value === 'cloze' || value === 'reading_comprehension'
+                        ? Math.max(4, currentQuestion.optionCount)
+                        : isChoiceLikeQuestionType(value)
+                          ? getDefaultOptionCount(value, currentQuestion.optionCount)
+                          : currentQuestion.optionCount,
+                      questionType: value,
+                      questionTypeStatus: 'manual',
+                      subQuestions: nextSubQuestions,
+                    };
+                  });
+                }}
+                options={reviewQuestionTypeOptions}
+                status={question.questionTypeStatus}
+                value={question.questionType}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-[10px]">
-            <button
-              className={`h-[42px] rounded-[7px] border px-[16px] text-[19px] font-medium leading-none ${
-                isQuestionEditing
-                  ? 'border-[#23bfb2] bg-[#23bfb2] text-white active:bg-[#12a99d]'
-                  : 'border-[#cfd5da] bg-white text-[#3f4852] active:bg-[#f4f6f7]'
-              }`}
-              onClick={(event) => {
-                event.stopPropagation();
-                setEditingQuestionId(isQuestionEditing ? null : question.id);
-              }}
-              type="button"
+            <div
+              data-req-anchor={shouldShowCardRequirementMarker ? 'tablet-review-image.edit-toggle' : undefined}
+              className="relative"
             >
-              {isQuestionEditing ? '完成' : '编辑'}
-            </button>
-            <StepSegmentedControl
-              mode={question.viewMode}
-              onChange={(value) => {
-                updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, viewMode: value }));
-              }}
-            />
-            <button
-              aria-label="更多操作"
-              className="relative flex h-[42px] w-[42px] items-center justify-center rounded-full text-[#68727d] active:bg-[#f3f5f6]"
-              onClick={(event) => {
-                event.stopPropagation();
-                setOpenMenuQuestionId(openMenuQuestionId === question.id ? null : question.id);
-              }}
-              type="button"
+              {shouldShowCardRequirementMarker
+                ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-010', 'right-[-16px] top-[-14px] z-40')
+                : null}
+              <button
+                className={`h-[42px] rounded-[7px] border px-[16px] text-[19px] font-medium leading-none ${
+                  isQuestionEditing
+                    ? 'border-[#23bfb2] bg-[#23bfb2] text-white active:bg-[#12a99d]'
+                    : 'border-[#cfd5da] bg-white text-[#3f4852] active:bg-[#f4f6f7]'
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setEditingQuestionId(isQuestionEditing ? null : question.id);
+                }}
+                type="button"
+              >
+                {isQuestionEditing ? '完成' : '编辑'}
+              </button>
+            </div>
+            <div
+              className="relative"
+              data-req-anchor={shouldShowCardRequirementMarker ? 'tablet-review-image.card-mode-switch' : undefined}
             >
-              <EllipsisVertical className="h-[24px] w-[24px]" />
-            </button>
-            <button
-              aria-label="删除题目"
-              className="flex h-[42px] w-[42px] items-center justify-center rounded-full text-[#68727d] active:bg-[#fff1f1] active:text-[#e45454]"
-              onClick={(event) => {
-                event.stopPropagation();
-                handleDeleteQuestion(question.id);
-              }}
-              type="button"
+              {shouldShowCardRequirementMarker
+                ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-016', 'right-[-14px] top-[-14px] z-40')
+                : null}
+              <StepSegmentedControl
+                mode={question.viewMode}
+                onChange={(value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, viewMode: value }));
+                }}
+              />
+            </div>
+            <div
+              className="relative"
+              data-req-anchor={shouldShowCardRequirementMarker ? 'tablet-review-image.more-menu' : undefined}
             >
-              <Trash2 className="h-[22px] w-[22px]" />
-            </button>
+              {shouldShowCardRequirementMarker
+                ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-018', 'right-[-12px] top-[-12px] z-40')
+                : null}
+              <button
+                aria-label="更多操作"
+                className="relative flex h-[42px] w-[42px] items-center justify-center rounded-full text-[#68727d] active:bg-[#f3f5f6]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpenMenuQuestionId(openMenuQuestionId === question.id ? null : question.id);
+                }}
+                type="button"
+              >
+                <EllipsisVertical className="h-[24px] w-[24px]" />
+              </button>
+            </div>
+            <div
+              data-req-anchor={shouldShowCardRequirementMarker ? 'tablet-review-image.delete-question' : undefined}
+              className="relative"
+            >
+              {shouldShowCardRequirementMarker
+                ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-012', 'right-[-12px] top-[-12px] z-40')
+                : null}
+              <button
+                aria-label="删除题目"
+                className="flex h-[42px] w-[42px] items-center justify-center rounded-full text-[#68727d] active:bg-[#fff1f1] active:text-[#e45454]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleDeleteQuestion(question.id);
+                }}
+                type="button"
+              >
+                <Trash2 className="h-[22px] w-[22px]" />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -5616,28 +7179,36 @@ function TabletOcrQuestionReviewPage({
           {isQuestionRecognizing ? (
             renderReviewRecognizingContent('正在重新识别中')
           ) : question.viewMode === 'image' ? (
-            <CroppedQuestionImage
-              cropRegion={isCropEditing ? cropRegion : null}
-              imageData={questionImageData}
-              isEditing={isCropEditing}
-              onClick={() => {
-                if (isQuestionEditing) handleStartCrop(question);
-              }}
-              onCropDragStart={(event, action) => {
-                if (!isQuestionEditing || !cropRegion) return;
-                event.preventDefault();
-                event.stopPropagation();
-                event.currentTarget.setPointerCapture?.(event.pointerId);
-                setCropDrag({
-                  action,
-                  startClientX: event.clientX,
-                  startClientY: event.clientY,
-                  startRegion: cropRegion,
-                });
-                hasDraggedCropRef.current = false;
-              }}
-              onImageLoad={(width, height) => handleQuestionImageLoad(question.id, width, height)}
-            />
+            <div
+              className="relative"
+              data-req-anchor={shouldShowCardRequirementMarker ? 'tablet-review-image.crop' : undefined}
+            >
+              {shouldShowCardRequirementMarker
+                ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-011', 'right-[12px] top-[12px] z-40')
+                : null}
+              <CroppedQuestionImage
+                cropRegion={isCropEditing ? cropRegion : null}
+                imageData={questionImageData}
+                isEditing={isCropEditing}
+                onClick={() => {
+                  if (isQuestionEditing) handleStartCrop(question);
+                }}
+                onCropDragStart={(event, action) => {
+                  if (!isQuestionEditing || !cropRegion) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.currentTarget.setPointerCapture?.(event.pointerId);
+                  setCropDrag({
+                    action,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    startRegion: cropRegion,
+                  });
+                  hasDraggedCropRef.current = false;
+                }}
+                onImageLoad={(width, height) => handleQuestionImageLoad(question.id, width, height)}
+              />
+            </div>
           ) : (
             renderRecognitionContent(question, !isQuestionEditing)
           )}
@@ -5671,97 +7242,88 @@ function TabletOcrQuestionReviewPage({
           {question.viewMode === 'image' ? (
           <div className="mt-[18px]">
             {shouldShowReviewSubQuestionAction(question.questionType) ? (
-            <AnswerConfigPanel
-              answerMode={shouldShowAnswerAnalysis}
-              onAddSubQuestion={(questionType) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  subQuestions: [
-                    ...currentQuestion.subQuestions,
-                    {
-                      id: `${currentQuestion.id}-sub-${Date.now()}`,
-                      answer: '',
-                      analysis: '',
-                      blankCount: getDefaultBlankCount(questionType),
-                      blankAnswers: createBlankAnswers(getDefaultBlankCount(questionType)),
-                      content: '',
-                      optionContents: isChoiceLikeQuestionType(questionType) ? buildOptionContents(questionType, getDefaultOptionCount(questionType)) : {},
-                      optionCount: getDefaultOptionCount(questionType),
-                      questionType,
-                    },
-                  ],
-                }));
-                showToast('子题添加成功');
-              }}
-              onBlankCountChange={(value) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  blankAnswers: createBlankAnswers(value, currentQuestion.blankAnswers),
-                  blankCount: value,
-                }));
-              }}
-              onDeleteSubQuestion={(subQuestionId) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  subQuestions: currentQuestion.subQuestions.filter((subQuestion) => subQuestion.id !== subQuestionId),
-                }));
-              }}
-              onOptionCountChange={(value) => {
-                updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, optionCount: value }));
-              }}
-              onSetClozeSubQuestionCount={(value) => {
-                updateQuestion(question.id, (currentQuestion) => {
-                  const nextSubQuestions = [...currentQuestion.subQuestions];
-                  if (value > nextSubQuestions.length) {
-                    for (let index = nextSubQuestions.length; index < value; index += 1) {
-                      nextSubQuestions.push(createReviewSubQuestion(currentQuestion.id, index, 'single_choice', { optionCount: currentQuestion.optionCount }));
-                    }
-                  } else {
-                    nextSubQuestions.splice(value);
+            <div
+              className="relative"
+              data-req-anchor={shouldShowImageSubQuestionMarker ? 'tablet-review-image.subquestions' : undefined}
+            >
+              {shouldShowImageSubQuestionMarker
+                ? renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-017', 'left-[18px] top-[-12px] z-40')
+                : null}
+              <AnswerConfigPanel
+                answerMode={shouldShowAnswerAnalysis}
+                onBlankCountChange={(value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({
+                    ...currentQuestion,
+                    blankAnswers: createBlankAnswers(value, currentQuestion.blankAnswers),
+                    blankCount: value,
+                  }));
+                }}
+                onDeleteSubQuestion={(subQuestionId) => {
+                  const subQuestion = question.subQuestions.find((item) => item.id === subQuestionId);
+                  if (subQuestion) {
+                    requestDeleteSubQuestion(question, subQuestion, 'image');
                   }
-                  return { ...currentQuestion, blankCount: value, subQuestions: nextSubQuestions };
-                });
-              }}
-              onSubQuestionBlankCountChange={(subQuestionId, value) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  subQuestions: currentQuestion.subQuestions.map((subQuestion) => (
-                    subQuestion.id === subQuestionId ? {
-                      ...subQuestion,
-                      blankAnswers: createBlankAnswers(value, subQuestion.blankAnswers),
-                      blankCount: value,
-                    } : subQuestion
-                  )),
-                }));
-              }}
-              onSubQuestionOptionCountChange={(subQuestionId, value) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  subQuestions: currentQuestion.subQuestions.map((subQuestion) => (
-                    subQuestion.id === subQuestionId ? { ...subQuestion, optionCount: value } : subQuestion
-                  )),
-                }));
-              }}
-              onSubQuestionTypeChange={(subQuestionId, value) => {
-                updateQuestion(question.id, (currentQuestion) => ({
-                  ...currentQuestion,
-                  subQuestions: currentQuestion.subQuestions.map((subQuestion) => (
-                    subQuestion.id === subQuestionId
-                      ? {
-                          ...subQuestion,
-                          blankAnswers: value === 'fill_blank' ? createBlankAnswers(Math.max(1, subQuestion.blankCount), subQuestion.blankAnswers) : subQuestion.blankAnswers,
-                          blankCount: value === 'fill_blank' ? Math.max(1, subQuestion.blankCount) : subQuestion.blankCount,
-                          optionContents: isChoiceLikeQuestionType(value) ? buildOptionContents(value, getDefaultOptionCount(value, subQuestion.optionCount), subQuestion.optionContents || {}) : {},
-                          optionCount: value === 'multiple_choice' ? Math.max(4, subQuestion.optionCount) : subQuestion.optionCount,
-                          questionType: value,
-                        }
-                      : subQuestion
-                  )),
-                }));
-              }}
-              question={question}
-              subject={subject}
-            />
+                }}
+                onInsertSubQuestion={(subQuestionId, placement, questionType) => {
+                  insertImageModeSubQuestion(question.id, subQuestionId, placement, questionType);
+                }}
+                onOptionCountChange={(value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({ ...currentQuestion, optionCount: value }));
+                }}
+                onSetClozeSubQuestionCount={(value) => {
+                  updateQuestion(question.id, (currentQuestion) => {
+                    const nextSubQuestions = [...currentQuestion.subQuestions];
+                    if (value > nextSubQuestions.length) {
+                      for (let index = nextSubQuestions.length; index < value; index += 1) {
+                        nextSubQuestions.push(createReviewSubQuestion(currentQuestion.id, index, 'single_choice', { optionCount: currentQuestion.optionCount }));
+                      }
+                    } else {
+                      nextSubQuestions.splice(value);
+                    }
+                    return { ...currentQuestion, blankCount: value, subQuestions: nextSubQuestions };
+                  });
+                }}
+                onSubQuestionBlankCountChange={(subQuestionId, value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({
+                    ...currentQuestion,
+                    subQuestions: currentQuestion.subQuestions.map((subQuestion) => (
+                      subQuestion.id === subQuestionId ? {
+                        ...subQuestion,
+                        blankAnswers: createBlankAnswers(value, subQuestion.blankAnswers),
+                        blankCount: value,
+                      } : subQuestion
+                    )),
+                  }));
+                }}
+                onSubQuestionOptionCountChange={(subQuestionId, value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({
+                    ...currentQuestion,
+                    subQuestions: currentQuestion.subQuestions.map((subQuestion) => (
+                      subQuestion.id === subQuestionId ? { ...subQuestion, optionCount: value } : subQuestion
+                    )),
+                  }));
+                }}
+                onSubQuestionTypeChange={(subQuestionId, value) => {
+                  updateQuestion(question.id, (currentQuestion) => ({
+                    ...currentQuestion,
+                    subQuestions: currentQuestion.subQuestions.map((subQuestion) => (
+                      subQuestion.id === subQuestionId
+                        ? {
+                            ...subQuestion,
+                            blankAnswers: value === 'fill_blank' ? createBlankAnswers(Math.max(1, subQuestion.blankCount), subQuestion.blankAnswers) : subQuestion.blankAnswers,
+                            blankCount: value === 'fill_blank' ? Math.max(1, subQuestion.blankCount) : subQuestion.blankCount,
+                            optionContents: isChoiceLikeQuestionType(value) ? buildOptionContents(value, getDefaultOptionCount(value, subQuestion.optionCount), subQuestion.optionContents || {}) : {},
+                            optionCount: value === 'multiple_choice' ? Math.max(4, subQuestion.optionCount) : subQuestion.optionCount,
+                            questionType: value,
+                          }
+                        : subQuestion
+                    )),
+                  }));
+                }}
+                question={question}
+                subject={subject}
+              />
+            </div>
             ) : null}
             {renderImageModeAnswerAnalysis(question, !isQuestionEditing)}
           </div>
@@ -5817,14 +7379,18 @@ function TabletOcrQuestionReviewPage({
     !isQuestionResultLoading(question) && question.questionTypeStatus !== 'failed'
   ));
   const missingAnswerQuestionCount = questions.filter(hasMissingAnswerOrAnalysis).length;
+  const matchedAnswerQuestionCount = shouldShowAnswerAnalysis
+    ? questions.filter((question) => (
+        !isQuestionResultLoading(question) &&
+        question.questionTypeStatus !== 'failed' &&
+        !hasMissingAnswerOrAnalysis(question)
+      )).length
+    : 0;
+  const shouldShowQaMatchSummary = shouldShowAnswerAnalysis && !shouldShowRecognitionBar && questions.length > 0;
   const emptyStemQuestionCount = questions.filter(hasEmptyQuestionStem).length;
   const editingQuestionCount = editingQuestionId && questions.some((question) => question.id === editingQuestionId) ? 1 : 0;
   const handleJoinPaperClick = () => {
     if (!hasJoinableQuestions) return;
-    if (missingAnswerQuestionCount > 0) {
-      setShowJoinMissingDialog(true);
-      return;
-    }
     if (emptyStemQuestionCount > 0) {
       setShowJoinEmptyStemDialog(true);
       return;
@@ -5834,6 +7400,25 @@ function TabletOcrQuestionReviewPage({
       return;
     }
     setShowJoinModeDialog(true);
+  };
+  const enterPaperEditPage = () => {
+    try {
+      sessionStorage.setItem(
+        'paperEditData',
+        JSON.stringify(buildPaperEditDataFromTabletReview(
+          questions,
+          materialPages,
+          subject,
+          mode,
+          joinPaperMode,
+        )),
+      );
+      sessionStorage.setItem('tabletAiEntryReturnPath', '/tablet-ai-entry');
+      router.push('/paper-edit');
+    } catch (error) {
+      console.error('[tablet-review] paperEditData 写入失败:', error);
+      showToast('加入试卷失败，题目数据暂未保存，请重试');
+    }
   };
   const handleConfirmMissingJoin = () => {
     setShowJoinMissingDialog(false);
@@ -5845,39 +7430,57 @@ function TabletOcrQuestionReviewPage({
       setShowJoinEditingDialog(true);
       return;
     }
-    onExit();
+    enterPaperEditPage();
   };
   const handleConfirmJoinMode = () => {
     setShowJoinModeDialog(false);
-    onExit();
+    enterPaperEditPage();
   };
 
   return (
     <div className="absolute inset-0 z-30 bg-[#eef2f5]">
       <header className="absolute left-0 top-0 h-[88px] w-full border-b border-[#e3e7eb] bg-white">
-        <button
-          aria-label="返回"
-          className="absolute left-[28px] top-[20px] flex h-[50px] items-center gap-[6px] rounded-[8px] pr-[16px] text-[#202124] active:bg-[#f3f5f6]"
-          onClick={onBackToSelection}
-          type="button"
+        <div
+          data-req-anchor="tablet-review-image.back"
+          className="absolute left-[28px] top-[20px]"
         >
-          <ChevronLeft className="h-[34px] w-[34px] stroke-[2.3]" />
-          <span className="text-[28px] font-semibold leading-none">核对识别结果</span>
-          <span className="text-[20px] font-normal leading-none text-[#7b838c]">
-            （核对并补充识别出的题目内容）
-          </span>
-        </button>
-        <div className="absolute right-[188px] top-[24px] rounded-full bg-[#e7f7f1] px-[18px] py-[10px] text-[20px] leading-none text-[#2fac76]">
+          {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-001', 'right-[-18px] top-[-12px] z-40')}
+          <button
+            aria-label="返回"
+            className="flex h-[50px] items-center gap-[6px] rounded-[8px] pr-[16px] text-[#202124] active:bg-[#f3f5f6]"
+            onClick={onBackToSelection}
+            type="button"
+          >
+            <ChevronLeft className="h-[34px] w-[34px] stroke-[2.3]" />
+            <span className="text-[28px] font-semibold leading-none">核对识别结果</span>
+            <span
+              className="text-[20px] font-normal leading-none text-[#7b838c]"
+            >
+              （核对并补充识别出的题目内容）
+            </span>
+          </button>
+        </div>
+        <div
+          data-req-anchor="tablet-review-image.subject"
+          className="absolute right-[188px] top-[24px] rounded-full bg-[#e7f7f1] px-[18px] py-[10px] text-[20px] leading-none text-[#2fac76]"
+        >
+          {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-002', 'right-[-16px] top-[-14px] z-40')}
           {subject}
         </div>
-        <button
-          className="absolute right-[40px] top-[20px] h-[48px] rounded-[8px] bg-[#23bfb2] px-[24px] text-[20px] font-medium leading-none text-white active:bg-[#12a99d] disabled:bg-[#cfd7dd] disabled:text-white disabled:active:bg-[#cfd7dd]"
-          disabled={!hasJoinableQuestions}
-          onClick={handleJoinPaperClick}
-          type="button"
+        <div
+          data-req-anchor="tablet-review-image.join-paper"
+          className="absolute right-[40px] top-[20px]"
         >
-          加入试卷
-        </button>
+          {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-003', 'right-[-16px] top-[-14px] z-40')}
+          <button
+            className="h-[48px] rounded-[8px] bg-[#23bfb2] px-[24px] text-[20px] font-medium leading-none text-white active:bg-[#12a99d] disabled:bg-[#cfd7dd] disabled:text-white disabled:active:bg-[#cfd7dd]"
+            disabled={!hasJoinableQuestions}
+            onClick={handleJoinPaperClick}
+            type="button"
+          >
+            加入试卷
+          </button>
+        </div>
       </header>
 
       {toastMessage ? (
@@ -5917,70 +7520,117 @@ function TabletOcrQuestionReviewPage({
         />
       ) : null}
 
+      {pendingSubQuestionDeletion ? (
+        <DeleteSubQuestionConfirmDialog
+          onCancel={() => setPendingSubQuestionDeletion(null)}
+          onConfirm={handleConfirmDeleteSubQuestion}
+        />
+      ) : null}
+
       <main className="absolute bottom-0 left-0 right-0 top-[88px] flex">
         {manualLinkTarget && precisionRecognitionBox ? (
-          <button
-            className="absolute left-[980px] top-1/2 z-30 flex h-[82px] w-[82px] -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#23bfb2] text-[18px] font-semibold leading-[22px] text-white shadow-[0_10px_28px_rgba(35,191,178,0.36)] active:bg-[#12a99d] disabled:bg-[#b7d8d5]"
-            disabled={!precisionRecognitionBox || !!manualLinkProcessingTarget}
-            onClick={() => void handlePrecisionRecognition()}
-            type="button"
+          <div
+            className="absolute left-[980px] top-1/2 z-30 -translate-y-1/2"
+            data-req-anchor="tablet-review-qa-image.precision-box"
           >
-            <span>精准</span>
-            <span>识别</span>
-          </button>
-        ) : selectedPendingBoxCount > 0 ? (
-          <button
-            className="absolute left-[980px] top-1/2 z-30 flex h-[82px] w-[82px] -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#23bfb2] text-[18px] font-semibold leading-[22px] text-white shadow-[0_10px_28px_rgba(35,191,178,0.36)] active:bg-[#12a99d] disabled:bg-[#b7d8d5]"
-            disabled={recognitionStatus === 'recognizing'}
-            onClick={() => void handleContinueRecognition()}
-            type="button"
-          >
-            <span>继续</span>
-            <span>识别</span>
-          </button>
-        ) : null}
-        <section className="relative h-full w-[1030px] border-r border-[#dfe5ea] bg-[#f8fafb]">
-          <div className="absolute left-0 right-0 top-0 z-10 flex h-[66px] items-center gap-[22px] border-b border-[#e3e7eb] bg-white px-[28px]">
+            {renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-008', 'right-[-12px] top-[-12px] z-40')}
+            {manualLinkTarget.field === 'answer'
+              ? (
+                  <span className="relative" data-req-anchor="tablet-review-qa-image.answer-fill">
+                    {renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-010', 'left-[-18px] top-[56px] z-40')}
+                  </span>
+                )
+              : null}
             <button
-              aria-label="旋转图片"
-              className="inline-flex h-[42px] items-center gap-[8px] rounded-[7px] px-[12px] text-[20px] leading-none text-[#3f4852] active:bg-[#f3f5f6]"
-              onClick={() => undefined}
+              className="flex h-[82px] w-[82px] flex-col items-center justify-center rounded-full bg-[#23bfb2] text-[18px] font-semibold leading-[22px] text-white shadow-[0_10px_28px_rgba(35,191,178,0.36)] active:bg-[#12a99d] disabled:bg-[#b7d8d5]"
+              disabled={!precisionRecognitionBox || !!manualLinkProcessingTarget}
+              onClick={() => void handlePrecisionRecognition()}
               type="button"
             >
-              <RotateCw className="h-[22px] w-[22px]" />
-              旋转
+              <span>精准</span>
+              <span>识别</span>
             </button>
-            <div className="inline-flex h-[42px] items-center gap-[10px] rounded-[7px] px-[8px] text-[20px] leading-none text-[#3f4852]">
+          </div>
+        ) : selectedPendingBoxCount > 0 ? (
+          <div
+            data-req-anchor="tablet-review-image.continue-recognition"
+            className="absolute left-[980px] top-1/2 z-30 -translate-y-1/2"
+          >
+            {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-006', 'right-[-10px] top-[-10px] z-40')}
+            <button
+              className="flex h-[82px] w-[82px] flex-col items-center justify-center rounded-full bg-[#23bfb2] text-[18px] font-semibold leading-[22px] text-white shadow-[0_10px_28px_rgba(35,191,178,0.36)] active:bg-[#12a99d] disabled:bg-[#b7d8d5]"
+              disabled={recognitionStatus === 'recognizing'}
+              onClick={() => void handleContinueRecognition()}
+              type="button"
+            >
+              <span>继续</span>
+              <span>识别</span>
+            </button>
+          </div>
+        ) : null}
+        <section
+          data-req-anchor="tablet-review-image.box-card-link"
+          className="relative h-full w-[1030px] border-r border-[#dfe5ea] bg-[#f8fafb]"
+        >
+          {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-004', 'left-[940px] top-[88px] z-40')}
+          {manualLinkTarget && (manualLinkTarget.field === 'answer' || manualLinkTarget.field === 'analysis') ? (
+            <span className="relative" data-req-anchor="tablet-review-qa-image.answer-source-pages">
+              {renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-009', 'left-[940px] top-[88px] z-40')}
+            </span>
+          ) : null}
+          <div className="absolute left-0 right-0 top-0 z-10 flex h-[66px] items-center gap-[22px] border-b border-[#e3e7eb] bg-white px-[28px]">
+            <div
+              data-req-anchor="tablet-review-image.rotate-zoom"
+              className="relative flex items-center gap-[22px]"
+            >
               <button
-                aria-label="缩小图片"
-                className="flex h-[34px] w-[34px] items-center justify-center rounded-full active:bg-[#f3f5f6]"
+                aria-label="旋转图片"
+                className="inline-flex h-[42px] items-center gap-[8px] rounded-[7px] px-[12px] text-[20px] leading-none text-[#3f4852] active:bg-[#f3f5f6]"
                 onClick={() => undefined}
                 type="button"
               >
-                <ZoomOut className="h-[22px] w-[22px]" />
+                <RotateCw className="h-[22px] w-[22px]" />
+                旋转
               </button>
-              <span className="min-w-[58px] text-center">100%</span>
+              <div className="inline-flex h-[42px] items-center gap-[10px] rounded-[7px] px-[8px] text-[20px] leading-none text-[#3f4852]">
+                <button
+                  aria-label="缩小图片"
+                  className="flex h-[34px] w-[34px] items-center justify-center rounded-full active:bg-[#f3f5f6]"
+                  onClick={() => undefined}
+                  type="button"
+                >
+                  <ZoomOut className="h-[22px] w-[22px]" />
+                </button>
+                <span className="min-w-[58px] text-center">100%</span>
+                <button
+                  aria-label="放大图片"
+                  className="flex h-[34px] w-[34px] items-center justify-center rounded-full active:bg-[#f3f5f6]"
+                  onClick={() => undefined}
+                  type="button"
+                >
+                  <ZoomIn className="h-[22px] w-[22px]" />
+                </button>
+              </div>
+              {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-013', 'right-[-14px] top-[-14px] z-40')}
+            </div>
+            <div
+              data-req-anchor="tablet-review-image.add-box"
+              className="relative"
+            >
+              {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-005', 'right-[-16px] top-[-14px] z-40')}
               <button
-                aria-label="放大图片"
-                className="flex h-[34px] w-[34px] items-center justify-center rounded-full active:bg-[#f3f5f6]"
-                onClick={() => undefined}
+                className={`inline-flex h-[42px] items-center gap-[8px] rounded-[7px] border px-[16px] text-[20px] font-medium leading-none ${
+                  isReviewAddBoxMode
+                    ? 'border-[#23bfb2] bg-[#e1f8f5] text-[#0f9489]'
+                    : 'border-[#d7dde3] bg-white text-[#3f4852] active:bg-[#f3f5f6]'
+                }`}
+                onClick={() => setIsReviewAddBoxMode((currentMode) => !currentMode)}
                 type="button"
               >
-                <ZoomIn className="h-[22px] w-[22px]" />
+                <Plus className="h-[22px] w-[22px]" />
+                添加识别框
               </button>
             </div>
-            <button
-              className={`inline-flex h-[42px] items-center gap-[8px] rounded-[7px] border px-[16px] text-[20px] font-medium leading-none ${
-                isReviewAddBoxMode
-                  ? 'border-[#23bfb2] bg-[#e1f8f5] text-[#0f9489]'
-                  : 'border-[#d7dde3] bg-white text-[#3f4852] active:bg-[#f3f5f6]'
-              }`}
-              onClick={() => setIsReviewAddBoxMode((currentMode) => !currentMode)}
-              type="button"
-            >
-              <Plus className="h-[22px] w-[22px]" />
-              添加识别框
-            </button>
           </div>
           <div className="absolute bottom-0 left-0 right-0 top-[66px] overflow-y-auto px-[28px] py-[24px]">
             {materialPages.map(renderLeftMaterialPage)}
@@ -5988,24 +7638,50 @@ function TabletOcrQuestionReviewPage({
         </section>
         <section className="relative flex-1 bg-[#eef2f5]">
           <div className="absolute left-0 right-0 top-0 z-10 flex h-[66px] items-center justify-between border-b border-[#e3e7eb] bg-white px-[28px]">
-            <StepSegmentedControl
-              labels={{ recognition: '识别模式', image: '图片模式' }}
-              mode={globalMode}
-              onChange={handleGlobalModeChange}
-            />
+            <div className="relative" data-req-anchor="tablet-review-image.mode-switch">
+              {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-007', 'right-[-18px] top-[-14px] z-40')}
+              <StepSegmentedControl
+                labels={{ recognition: '识别模式', image: '图片模式' }}
+                mode={globalMode}
+                onChange={handleGlobalModeChange}
+              />
+            </div>
             <div className="flex items-center gap-[12px]">
-              <span className="rounded-full bg-[#f3f5f6] px-[18px] py-[10px] text-[19px] leading-none text-[#68727d]">
+              <div
+                data-req-anchor="tablet-review-image.question-count"
+                className="relative rounded-full bg-[#f3f5f6] px-[18px] py-[10px] text-[19px] leading-none text-[#68727d]"
+              >
+                {renderReviewImageRequirementMarker('TABLET_REVIEW_IMAGE-008', 'right-[-14px] top-[-14px] z-40')}
                 共 {questions.length} 题
-              </span>
+              </div>
             </div>
           </div>
           {shouldShowRecognitionBar ? (
-            <div className="absolute left-[28px] right-[28px] top-[82px] z-10 flex h-[48px] items-center gap-[12px] rounded-[8px] bg-[#e8f3ff] px-[18px] text-[20px] font-medium leading-none text-[#2478d4] shadow-sm">
+            <div
+              className="absolute left-[28px] right-[28px] top-[82px] z-10 flex h-[48px] items-center gap-[12px] rounded-[8px] bg-[#e8f3ff] px-[18px] text-[20px] font-medium leading-none text-[#2478d4] shadow-sm"
+              data-req-anchor={shouldShowAnswerAnalysis ? 'tablet-review-qa-image.answer-matching' : undefined}
+            >
+              {shouldShowAnswerAnalysis
+                ? renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-002', 'right-[-14px] top-[-14px] z-40')
+                : null}
               <div className="h-[24px] w-[24px] animate-spin rounded-full border-[3px] border-[#bddcff] border-t-[#2478d4]" />
               {reviewStatusMessage}
             </div>
           ) : null}
-          <div className={`absolute bottom-0 left-[28px] right-[28px] overflow-y-auto pb-[36px] ${shouldShowRecognitionBar ? 'top-[148px]' : 'top-[90px]'}`}>
+          {shouldShowQaMatchSummary ? (
+            <div
+              className="absolute left-[28px] right-[28px] top-[82px] z-10 flex h-[48px] items-center justify-between rounded-[8px] bg-[#fff7ed] px-[18px] text-[20px] font-medium leading-none text-[#b45309] shadow-sm"
+              data-req-anchor="tablet-review-qa-image.match-banner"
+            >
+              {renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-001', 'right-[-14px] top-[-14px] z-40')}
+              <span className="relative" data-req-anchor="tablet-review-qa-image.sub-missing-count">
+                {renderReviewQaImageRequirementMarker('TABLET_REVIEW_QA_IMAGE-018', 'right-[42px] top-[-14px] z-40')}
+              </span>
+              <span>答案解析匹配：共 {questions.length} 题，已匹配 {matchedAnswerQuestionCount} 题，待补充 {missingAnswerQuestionCount} 题</span>
+              <span className="text-[18px] text-[#92400e]">可点击【答】【析】手动关联补充</span>
+            </div>
+          ) : null}
+          <div className={`absolute bottom-0 left-[28px] right-[28px] overflow-y-auto pb-[36px] ${shouldShowRecognitionBar || shouldShowQaMatchSummary ? 'top-[148px]' : 'top-[90px]'}`}>
             {questions.length > 0 || recognizingReviewBoxIds.size > 0 ? (
               <div className="space-y-[22px]">{renderReviewQuestionItems()}</div>
             ) : (
@@ -6103,6 +7779,40 @@ function JoinMissingAnswerDialog({
           <p className="mt-[28px] text-[22px] leading-[36px] text-[#5f6872]">
             当前还有{missingCount}道题的答案/解析没有补充，您可以在后续组卷页面使用AI批量补充功能，进行补充。
           </p>
+          <div className="mt-[38px] flex justify-center gap-[28px]">
+            <button
+              className="h-[50px] min-w-[128px] rounded-[7px] border border-[#c9ced3] bg-white px-[28px] text-[22px] leading-none text-[#5f6872] active:bg-[#f4f6f7]"
+              onClick={onCancel}
+              type="button"
+            >
+              取消
+            </button>
+            <button
+              className="h-[50px] min-w-[128px] rounded-[7px] bg-[#23bfb2] px-[28px] text-[22px] font-medium leading-none text-white active:bg-[#12a99d]"
+              onClick={onConfirm}
+              type="button"
+            >
+              确认
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DeleteSubQuestionConfirmDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-50 bg-black/45">
+      <section className="absolute left-1/2 top-1/2 w-[520px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[12px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+        <div className="px-[48px] pb-[34px] pt-[42px] text-center">
+          <div className="text-[26px] font-semibold leading-[36px] text-[#202124]">确认删除当前子题吗？</div>
           <div className="mt-[38px] flex justify-center gap-[28px]">
             <button
               className="h-[50px] min-w-[128px] rounded-[7px] border border-[#c9ced3] bg-white px-[28px] text-[22px] leading-none text-[#5f6872] active:bg-[#f4f6f7]"
@@ -6223,57 +7933,57 @@ function JoinPaperModeDialog({
 
   return (
     <div className="absolute inset-0 z-50 bg-black/45">
-      <section className="absolute left-1/2 top-1/2 w-[820px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[12px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
-        <header className="relative flex h-[78px] items-center bg-[#e9fbf7] px-[30px]">
-          <h3 className="text-[28px] font-medium leading-none text-[#23bfb2]">加入试卷</h3>
+      <section className="absolute left-1/2 top-1/2 max-h-[calc(100vh-64px)] w-[min(1180px,calc(100vw-64px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[20px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+        <header className="relative flex h-[104px] items-center bg-[#e6f7f3] px-[40px]">
+          <h3 className="text-[36px] font-normal leading-none text-[#18b9ae]">加入试卷</h3>
           <button
             aria-label="关闭组卷方式选择"
-            className="absolute right-[24px] top-[21px] flex h-[36px] w-[36px] items-center justify-center rounded-full bg-[#23bfb2] text-white active:bg-[#12a99d]"
+            className="absolute right-[36px] top-[30px] flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#21bdb4] text-white active:bg-[#12a99d]"
             onClick={onCancel}
             type="button"
           >
-            <X className="h-[22px] w-[22px] stroke-[3]" />
+            <X className="h-[28px] w-[28px] stroke-[2.8]" />
           </button>
         </header>
-        <div className="px-[86px] pb-[34px] pt-[34px]">
-          <div className="text-[23px] leading-none text-[#3f4852]">请选择一种组卷方式：</div>
-          <div className="mt-[24px] space-y-[20px]">
+        <div className="max-h-[calc(100vh-168px)] overflow-y-auto px-[min(9vw,128px)] pb-[46px] pt-[54px]">
+          <div className="text-center text-[34px] leading-none text-[#5d5d5d]">请选择一种组卷方式：</div>
+          <div className="mt-[40px] space-y-[28px]">
             {options.map((option) => {
               const isSelected = mode === option.value;
               return (
                 <button
                   key={option.value}
-                  className={`flex w-full items-center gap-[22px] rounded-[10px] border px-[28px] py-[20px] text-left ${
+                  className={`flex min-h-[126px] w-full items-center gap-[34px] rounded-[16px] border-[2px] px-[52px] py-[24px] text-left ${
                     isSelected
                       ? 'border-[#23bfb2] bg-[#e9fbf7]'
-                      : 'border-[#dfe4e8] bg-white active:bg-[#f6f8f9]'
+                      : 'border-[#dadada] bg-white active:bg-[#f6f8f9]'
                   }`}
                   onClick={() => onChange(option.value)}
                   type="button"
                 >
-                  <span className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border-[2px] ${
-                    isSelected ? 'border-[#23bfb2]' : 'border-[#c9ced3]'
+                  <span className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-[2px] ${
+                    isSelected ? 'border-[#23bfb2]' : 'border-[#bfc0c1]'
                   }`}>
-                    {isSelected ? <span className="h-[10px] w-[10px] rounded-full bg-[#23bfb2]" /> : null}
+                    {isSelected ? <span className="h-[16px] w-[16px] rounded-full bg-[#23bfb2]" /> : null}
                   </span>
                   <span>
-                    <span className="block text-[23px] font-semibold leading-none text-[#202124]">{option.title}</span>
-                    <span className="mt-[12px] block text-[19px] leading-none text-[#8b949e]">{option.tip}</span>
+                    <span className="block text-[34px] font-semibold leading-none text-[#3e454b]">{option.title}</span>
+                    <span className="mt-[18px] block text-[27px] leading-[34px] text-[#93999d]">{option.tip}</span>
                   </span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-[34px] flex justify-center gap-[24px]">
+          <div className="mt-[58px] flex justify-center gap-[64px]">
             <button
-              className="h-[50px] min-w-[128px] rounded-[7px] border border-[#c9ced3] bg-white px-[28px] text-[22px] leading-none text-[#5f6872] active:bg-[#f4f6f7]"
+              className="h-[66px] min-w-[172px] rounded-[8px] border-[2px] border-[#c7c7c7] bg-white px-[36px] text-[29px] leading-none text-[#626262] active:bg-[#f4f6f7]"
               onClick={onCancel}
               type="button"
             >
               取消
             </button>
             <button
-              className="h-[50px] min-w-[142px] rounded-[7px] bg-[#23bfb2] px-[28px] text-[22px] font-medium leading-none text-white active:bg-[#12a99d]"
+              className="h-[66px] min-w-[184px] rounded-[8px] bg-[#23bfb2] px-[36px] text-[29px] font-medium leading-none text-white active:bg-[#12a99d]"
               onClick={onConfirm}
               type="button"
             >
@@ -6292,6 +8002,9 @@ function TabletOcrContentSelectionPage({
   onBack,
   onReplace,
   onSupplement,
+  renderRequirementMarker,
+  renderReviewRequirementMarker,
+  prototypeFixture,
   subject,
 }: {
   images: SelectedImage[];
@@ -6299,6 +8012,9 @@ function TabletOcrContentSelectionPage({
   onBack: () => void;
   onReplace: () => void;
   onSupplement: () => void;
+  renderRequirementMarker: RequirementMarkerRenderer;
+  renderReviewRequirementMarker: RequirementMarkerRenderer;
+  prototypeFixture?: TabletPrototypeFixture | null;
   subject: string;
 }) {
   const [status, setStatus] = useState<OcrDetectStatus>('loading');
@@ -6318,32 +8034,80 @@ function TabletOcrContentSelectionPage({
   const [confirmAction, setConfirmAction] = useState<TabletConfirmAction>(null);
   const [dismissedEmptyPromptPages, setDismissedEmptyPromptPages] = useState<Set<number>>(new Set());
   const [isAddBoxMode, setIsAddBoxMode] = useState(false);
-  const [hasSeenAddBoxModeTip, setHasSeenAddBoxModeTip] = useState(false);
   const [showAddBoxModeTip, setShowAddBoxModeTip] = useState(false);
+  const [addBoxInteractionMode, setAddBoxInteractionMode] = useState<AddBoxInteractionMode>('draw');
   const [selectionOrientation, setSelectionOrientation] = useState<SelectionOrientation>('landscape');
+  const [selectionToastMessage, setSelectionToastMessage] = useState('');
   const imageWrapRef = useRef<HTMLDivElement>(null);
   const pageWrapRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const hasMovedBoxRef = useRef(false);
   const materialPagesRef = useRef<MaterialPage[]>([]);
   const processedImageUrlsRef = useRef<Set<string>>(new Set());
   const detectedModeRef = useRef<RecognitionMode | ''>(mode);
+  const detectedImageOrderRef = useRef('');
+  const selectionToastTimerRef = useRef<number | null>(null);
+  const renderQuestionsOnlyRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => renderRequirementMarker(requirementId, className, displayNumber);
 
   useEffect(() => {
     materialPagesRef.current = materialPages;
   }, [materialPages]);
 
+  useEffect(() => () => {
+    if (selectionToastTimerRef.current) {
+      window.clearTimeout(selectionToastTimerRef.current);
+    }
+  }, []);
+
+  const showSelectionToast = (message: string) => {
+    setSelectionToastMessage(message);
+    if (selectionToastTimerRef.current) {
+      window.clearTimeout(selectionToastTimerRef.current);
+    }
+    selectionToastTimerRef.current = window.setTimeout(() => {
+      setSelectionToastMessage('');
+      selectionToastTimerRef.current = null;
+    }, 2200);
+  };
+
   useEffect(() => {
     let cancelled = false;
 
     async function runDetect() {
-      const currentImageUrls = new Set(images.map((image) => image.url));
+      if (prototypeFixture) {
+        const pages = prototypeFixture.pages.map((page) => ({ ...page }));
+        const fixtureBoxes = prototypeFixture.boxes.map((box) => ({ ...box }));
+
+        processedImageUrlsRef.current = new Set(prototypeFixture.images.map((image) => getImageKey(image)));
+        materialPagesRef.current = pages;
+        detectedModeRef.current = prototypeFixture.mode;
+        detectedImageOrderRef.current = getImageOrderSignature(prototypeFixture.images);
+        setMaterialPages(pages);
+        setBoxes(fixtureBoxes);
+        setActivePageNumber(pages.find((page) => page.role !== 'answer')?.pageNumber || 1);
+        setStatus('ready');
+        setDismissedEmptyPromptPages(new Set());
+        setIsAddBoxMode(false);
+        setDrawingBoxDraft(null);
+        setHasStarted(prototypeFixture.autoStartReview);
+        return;
+      }
+
+      const imageOrderSignature = images.map((image) => `${getImageKey(image)}:${image.role || 'material'}`).join('|');
+      const currentImageUrls = new Set(images.map((image) => getImageKey(image)));
       const hasRemovedImage = Array.from(processedImageUrlsRef.current).some((url) => !currentImageUrls.has(url));
       const hasModeChanged = detectedModeRef.current !== mode;
+      const hasImageOrderChanged = detectedImageOrderRef.current !== imageOrderSignature;
+      const shouldRebuildPages = hasRemovedImage || hasModeChanged || hasImageOrderChanged;
 
-      if (hasRemovedImage || hasModeChanged) {
+      if (shouldRebuildPages) {
         processedImageUrlsRef.current = new Set();
         materialPagesRef.current = [];
         detectedModeRef.current = mode;
+        detectedImageOrderRef.current = imageOrderSignature;
         setMaterialPages([]);
         setBoxes([]);
         setHasStarted(false);
@@ -6351,8 +8115,10 @@ function TabletOcrContentSelectionPage({
         setIsAddBoxMode(false);
       }
 
-      const existingPages = hasRemovedImage || hasModeChanged ? [] : materialPagesRef.current;
-      const newImages = images.filter((image) => !processedImageUrlsRef.current.has(image.url));
+      const existingPages = shouldRebuildPages ? [] : materialPagesRef.current;
+      const newImages = shouldRebuildPages
+        ? images
+        : images.filter((image) => !processedImageUrlsRef.current.has(getImageKey(image)));
 
       if (newImages.length === 0) {
         if (existingPages.length === 0) {
@@ -6386,7 +8152,7 @@ function TabletOcrContentSelectionPage({
         materialPagesRef.current = pages;
         setMaterialPages(pages);
         setActivePageNumber((pagesForCut[0] || pages[0])?.pageNumber || 1);
-        newImages.forEach((image) => processedImageUrlsRef.current.add(image.url));
+        newImages.forEach((image) => processedImageUrlsRef.current.add(getImageKey(image)));
 
         if (pagesForCut.length === 0) {
           setStatus(pages.length > 0 ? 'ready' : 'failed');
@@ -6419,7 +8185,7 @@ function TabletOcrContentSelectionPage({
     return () => {
       cancelled = true;
     };
-  }, [images, mode]);
+  }, [images, mode, prototypeFixture]);
 
   useEffect(() => {
     if (!dragState) return undefined;
@@ -6527,6 +8293,10 @@ function TabletOcrContentSelectionPage({
   const isAllBoxesSelected = boxes.length > 0 && selectedCount === boxes.length;
   const isSomeBoxesSelected = selectedCount > 0 && !isAllBoxesSelected;
   const isPortraitSelection = selectionOrientation === 'portrait';
+  const isDetecting = status === 'loading';
+  const startRecognitionUnavailable = isDetecting || !activePage || boxes.length === 0 || selectedCount === 0;
+  const firstAutoBoxId = boxes.find((box) => box.source === 'system')?.id;
+  const firstBoxId = boxes[0]?.id;
 
   const getSelectionMaterialPageFrameSize = (page: MaterialPage) => {
     const scale = Math.min(
@@ -6566,6 +8336,7 @@ function TabletOcrContentSelectionPage({
     const containerRect = pageWrapRefs.current[page.pageNumber]?.getBoundingClientRect();
     if (!containerRect) return;
 
+    setActivePageNumber(page.pageNumber);
     const width = 72;
     const height = 8;
     const clickX = ((clientX - containerRect.left) / containerRect.width) * 100;
@@ -6653,6 +8424,11 @@ function TabletOcrContentSelectionPage({
   };
 
   const handleReplaceClick = () => {
+    if (isDetecting) {
+      showSelectionToast('正在切题，请稍后再操作');
+      return;
+    }
+
     if (boxes.length > 0) {
       setConfirmAction('replace');
       return;
@@ -6662,6 +8438,11 @@ function TabletOcrContentSelectionPage({
   };
 
   const handleClearClick = () => {
+    if (isDetecting) {
+      showSelectionToast('正在切题，请稍后再操作');
+      return;
+    }
+
     if (boxes.length > 0) {
       setConfirmAction('clear');
       return;
@@ -6671,13 +8452,18 @@ function TabletOcrContentSelectionPage({
   };
 
   const handleAddBoxModeClick = () => {
-    if (!isAddBoxMode && !hasSeenAddBoxModeTip) {
-      setHasSeenAddBoxModeTip(true);
+    if (isDetecting) {
+      showSelectionToast('正在切题，请稍后再操作');
+      return;
+    }
+
+    if (!isAddBoxMode) {
       setShowAddBoxModeTip(true);
       return;
     }
 
-    setIsAddBoxMode((currentMode) => !currentMode);
+    setDrawingBoxDraft(null);
+    setIsAddBoxMode(false);
   };
 
   const handleAddBoxModeTipConfirm = () => {
@@ -6685,28 +8471,80 @@ function TabletOcrContentSelectionPage({
     setIsAddBoxMode(true);
   };
 
+  const handleBackClick = () => {
+    if (boxes.length > 0) {
+      setConfirmAction('back');
+      return;
+    }
+
+    onBack();
+  };
+
+  const handleStartRecognitionClick = () => {
+    if (isDetecting) {
+      showSelectionToast('正在切题，请稍后再操作');
+      return;
+    }
+
+    if (boxes.length === 0) {
+      showSelectionToast('请先框选要识别的题目');
+      return;
+    }
+
+    if (selectedCount === 0) {
+      showSelectionToast('请先选择要识别的题目框');
+      return;
+    }
+
+    setHasStarted(true);
+  };
+
   const handleConfirmAction = () => {
     const action = confirmAction;
     setConfirmAction(null);
 
+    if (action === 'back') {
+      setBoxes([]);
+      setDrawingBoxDraft(null);
+      setIsAddBoxMode(false);
+      onBack();
+      return;
+    }
+
     if (action === 'replace') {
+      setBoxes([]);
+      setDrawingBoxDraft(null);
+      setIsAddBoxMode(false);
       onReplace();
       return;
     }
 
     if (action === 'clear') {
       setBoxes([]);
+      setDrawingBoxDraft(null);
+      setIsAddBoxMode(false);
     }
   };
 
   if (hasStarted) {
+    const selectedBoxIds = new Set(
+      boxes
+        .filter((box) => box.selected)
+        .map((box) => box.id),
+    );
+    const prototypeReviewQuestions = prototypeFixture?.reviewQuestions.filter((question) => (
+      selectedBoxIds.has(question.id)
+    ));
+
     return (
       <TabletOcrQuestionReviewPage
         boxes={boxes}
+        initialQuestions={prototypeReviewQuestions?.length ? prototypeReviewQuestions : undefined}
         materialPages={materialPages}
         mode={mode || 'questions_only'}
         onBackToSelection={() => setHasStarted(false)}
         onExit={onBack}
+        renderRequirementMarker={renderReviewRequirementMarker}
         subject={subject}
       />
     );
@@ -6733,11 +8571,20 @@ function TabletOcrContentSelectionPage({
         <div
           className={`relative bg-white ${isAddBoxMode && isQuestionPage ? 'touch-none cursor-crosshair' : ''}`}
           onClick={(event) => {
-            if (isAddBoxMode && isQuestionPage) event.stopPropagation();
+            if (isAddBoxMode && isQuestionPage) {
+              event.stopPropagation();
+              if (addBoxInteractionMode === 'tap') {
+                addManualBoxAtPoint(page, event.clientX, event.clientY);
+              }
+            }
           }}
           onPointerDown={(event) => {
             if (isAddBoxMode && isQuestionPage) {
-              startDrawingBox(page, event);
+              if (addBoxInteractionMode === 'draw') {
+                startDrawingBox(page, event);
+              } else {
+                event.stopPropagation();
+              }
             }
           }}
           ref={(node) => {
@@ -6757,6 +8604,13 @@ function TabletOcrContentSelectionPage({
           {isQuestionPage ? pageBoxes.map((box) => (
             <div
               key={box.id}
+              data-req-anchor={
+                box.id === firstAutoBoxId
+                  ? 'tablet-question-content-selection.auto-box'
+                  : box.id === firstBoxId
+                    ? 'tablet-question-content-selection.single-box'
+                    : undefined
+              }
               className={`absolute border-2 ${
                 box.selected
                   ? 'border-[#26c9bc] bg-[#ddf8f4]/25'
@@ -6776,6 +8630,12 @@ function TabletOcrContentSelectionPage({
                 height: `${box.height}%`,
               }}
             >
+              {box.id === firstAutoBoxId
+                ? renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-015', 'left-[28px] top-[-18px]')
+                : null}
+              {box.id === firstBoxId
+                ? renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-016', 'right-[28px] top-[-18px]')
+                : null}
               <button
                 aria-label={box.selected ? '取消选中识别框' : '选中识别框'}
                 className={`absolute left-[4px] top-[4px] flex h-[20px] w-[20px] items-center justify-center rounded-[3px] text-[12px] font-semibold leading-none text-white ${
@@ -6812,9 +8672,11 @@ function TabletOcrContentSelectionPage({
           )) : null}
           {isQuestionPage && pageBoxes.length === 0 && isFirstQuestionPage && !dismissedEmptyPromptPages.has(page.pageNumber) ? (
             <div
+              data-req-anchor="tablet-question-content-selection.no-box-tip"
               className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-[16px] bg-white/92 px-[42px] py-[34px] shadow-[0_12px_34px_rgba(31,44,58,0.16)]"
               onClick={(event) => event.stopPropagation()}
             >
+              {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-017', 'right-[48px] top-[-12px]')}
               <button
                 aria-label="关闭未识别提示"
                 className="absolute right-[12px] top-[12px] flex h-[32px] w-[32px] items-center justify-center text-[#3f4852] active:text-[#202124]"
@@ -6831,13 +8693,9 @@ function TabletOcrContentSelectionPage({
                 <X className="h-[22px] w-[22px] stroke-[2.5]" />
               </button>
               <div className="text-[24px] font-medium leading-none text-[#202124]">未识别到题目框</div>
-              <button
-                className="mt-[22px] h-[46px] rounded-[8px] bg-[#23bfb2] px-[24px] text-[20px] font-medium leading-none text-white active:bg-[#12a99d]"
-                onClick={() => addManualBox(page)}
-                type="button"
-              >
-                添加识别框
-              </button>
+              <div className="mt-[18px] text-[20px] leading-[30px] text-[#68727d]">
+                可点击上方「添加识别框」手动框选
+              </div>
             </div>
           ) : null}
         </div>
@@ -6846,7 +8704,11 @@ function TabletOcrContentSelectionPage({
   };
 
   const renderSeparateModeMaterials = () => (
-    <div className={`absolute inset-0 overflow-y-auto ${isPortraitSelection ? 'px-[24px] py-[22px]' : 'px-[42px] py-[28px]'}`}>
+    <div
+      className={`absolute inset-0 overflow-y-auto ${isPortraitSelection ? 'px-[24px] py-[22px]' : 'px-[42px] py-[28px]'}`}
+      data-req-anchor="tablet-question-content-selection.separate-mode-groups"
+    >
+      {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-022', 'left-[22px] top-[18px] z-50')}
       <section>
         <div className="mb-[18px] flex items-center gap-[14px]">
           <span className="rounded-[6px] bg-[#e7f7ff] px-[16px] py-[8px] text-[21px] font-semibold leading-none text-[#268fe8]">
@@ -6876,7 +8738,11 @@ function TabletOcrContentSelectionPage({
   );
 
   const renderUnifiedModeMaterials = () => (
-    <div className={`absolute inset-0 overflow-y-auto ${isPortraitSelection ? 'px-[24px] py-[22px]' : 'px-[42px] py-[28px]'}`}>
+    <div
+      className={`absolute inset-0 overflow-y-auto ${isPortraitSelection ? 'px-[24px] py-[22px]' : 'px-[42px] py-[28px]'}`}
+      data-req-anchor="tablet-question-content-selection.material-pages"
+    >
+      {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-014', 'left-[36px] top-[28px]')}
       {materialPages.map((page) => renderMaterialPage(page, 'question'))}
     </div>
   );
@@ -6887,50 +8753,77 @@ function TabletOcrContentSelectionPage({
         <button
           aria-label="返回"
           className="absolute left-[28px] top-[20px] flex h-[50px] items-center gap-[6px] rounded-[8px] pr-[16px] text-[#202124] active:bg-[#f3f5f6]"
-          onClick={onBack}
+          data-req-anchor="tablet-question-content-selection.header-back"
+          onClick={handleBackClick}
           type="button"
         >
           <ChevronLeft className="h-[34px] w-[34px] stroke-[2.3]" />
           <span className="text-[28px] font-semibold leading-none">选择识别内容</span>
-          <span className="text-[20px] font-normal leading-none text-[#7b838c]">
-            （在左侧资料上选择要识别的<strong className="font-semibold text-[#5f6872]">完整内容</strong>）
+          <span
+            className="text-[20px] font-normal leading-none text-[#7b838c]"
+            data-req-anchor="tablet-question-content-selection.scope-copy"
+          >
+            （在左侧资料上选择要识别的<strong className="font-semibold text-[#5f6872]">完整题干内容</strong>）
           </span>
         </button>
-        <div className="absolute right-[40px] top-[24px] rounded-full bg-[#e7f7f1] px-[18px] py-[10px] text-[20px] leading-none text-[#2fac76]">
+        {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-001', 'left-[360px] top-[12px] z-50')}
+        {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-002', 'left-[760px] top-[12px] z-50')}
+        <div
+          className="absolute right-[40px] top-[24px] rounded-full bg-[#e7f7f1] px-[18px] py-[10px] text-[20px] leading-none text-[#2fac76]"
+          data-req-anchor="tablet-question-content-selection.subject-tag"
+        >
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-003', 'right-[-12px] top-[-12px]')}
           {subject}
         </div>
       </header>
 
+      {selectionToastMessage ? (
+        <div className="absolute left-1/2 top-[104px] z-50 -translate-x-1/2 rounded-[8px] bg-[rgba(32,33,36,0.88)] px-[24px] py-[13px] text-[20px] font-medium leading-none text-white shadow-[0_12px_30px_rgba(0,0,0,0.22)]">
+          {selectionToastMessage}
+        </div>
+      ) : null}
+
       <div className="absolute left-0 top-[88px] flex h-[76px] w-full items-center justify-between gap-[18px] border-b border-[#e2e7eb] bg-white px-[34px]">
         <div className="flex min-w-0 items-center gap-[14px]">
-          <button className="h-[46px] rounded-[8px] border border-[#d7dde3] bg-white px-[20px] text-[20px] text-[#3f4852] active:bg-[#f4f6f7]" onClick={handleReplaceClick} type="button">
+          <button className="h-[46px] rounded-[8px] border border-[#d7dde3] bg-white px-[20px] text-[20px] text-[#3f4852] active:bg-[#f4f6f7] disabled:text-[#b8c0c8]" data-req-anchor="tablet-question-content-selection.replace-material" disabled={isDetecting} onClick={handleReplaceClick} type="button">
             更换资料
           </button>
-          <button className="h-[46px] rounded-[8px] border border-[#d7dde3] bg-white px-[20px] text-[20px] text-[#3f4852] active:bg-[#f4f6f7]" onClick={onSupplement} type="button">
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-004', 'left-[132px] top-[8px]')}
+          <button className="h-[46px] rounded-[8px] border border-[#d7dde3] bg-white px-[20px] text-[20px] text-[#3f4852] active:bg-[#f4f6f7] disabled:text-[#b8c0c8]" data-req-anchor="tablet-question-content-selection.supplement-material" disabled={isDetecting} onClick={onSupplement} type="button">
             补充资料
           </button>
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-005', 'left-[278px] top-[8px]')}
           <button
-            className={`h-[46px] rounded-[8px] border px-[20px] text-[20px] font-medium ${
+            className={`h-[46px] rounded-[8px] border px-[20px] text-[20px] font-medium disabled:border-[#d7dde3] disabled:bg-white disabled:text-[#b8c0c8] ${
               isAddBoxMode
                 ? 'border-[#23bfb2] bg-[#23bfb2] text-white active:bg-[#12a99d]'
                 : 'border-[#d7dde3] bg-white text-[#202124] active:bg-[#f4f6f7]'
             }`}
+            data-req-anchor="tablet-question-content-selection.add-box"
+            disabled={isDetecting || !activePage}
             onClick={handleAddBoxModeClick}
             type="button"
           >
             添加识别框
           </button>
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-006', 'left-[436px] top-[8px]')}
           <button
             className="h-[46px] rounded-[8px] border border-[#d7dde3] bg-white px-[20px] text-[20px] text-[#3f4852] active:bg-[#f4f6f7] disabled:text-[#b8c0c8]"
-            disabled={boxes.length === 0}
+            data-req-anchor="tablet-question-content-selection.clear-boxes"
+            disabled={isDetecting || boxes.length === 0}
             onClick={handleClearClick}
             type="button"
           >
             清空
           </button>
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-009', 'left-[612px] top-[8px]')}
         </div>
         <div className="flex h-[46px] shrink-0 items-center gap-[16px]">
-          <div className="flex h-[42px] rounded-[8px] bg-[#eef1f3] p-[4px]">
+          <div
+            className="relative flex h-[42px] rounded-[8px] bg-[#eef1f3] p-[4px]"
+            data-req-anchor="tablet-question-content-selection.orientation-switch"
+          >
+            {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-023', 'right-[-12px] top-[-16px] z-50')}
             <button
               aria-pressed={!isPortraitSelection}
               className={`h-[34px] rounded-[6px] px-[14px] text-[18px] font-medium leading-none ${
@@ -6961,6 +8854,7 @@ function TabletOcrContentSelectionPage({
                   ? 'text-[#4f5963] active:bg-[#f4f6f7]'
                   : 'text-[#8b949e] active:bg-[#f4f6f7]'
             } disabled:text-[#b8c0c8]`}
+            data-req-anchor="tablet-question-content-selection.select-all"
             disabled={boxes.length === 0}
             onClick={toggleAllBoxes}
             type="button"
@@ -6978,31 +8872,49 @@ function TabletOcrContentSelectionPage({
             </span>
             全选
           </button>
-          <span className="whitespace-nowrap text-[20px] leading-none text-[#68727d]">
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-010', 'left-[1220px] top-[8px]')}
+          <span
+            className="whitespace-nowrap text-[20px] leading-none text-[#68727d]"
+            data-req-anchor="tablet-question-content-selection.selection-stats"
+          >
+            {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-011', 'right-[-20px] top-[-14px]')}
             已选中{selectedCount}题 / 已框选{boxes.length}题
           </span>
           <button
-            className="h-[46px] rounded-[8px] bg-[#23bfb2] px-[24px] text-[20px] font-medium leading-none text-white shadow-[0_8px_18px_rgba(35,191,178,0.24)] active:bg-[#12a99d] disabled:bg-[#cfd7dd] disabled:shadow-none"
-            disabled={status === 'loading' || !activePage || selectedCount === 0}
-            onClick={() => setHasStarted(true)}
+            aria-disabled={startRecognitionUnavailable}
+            className={`h-[46px] rounded-[8px] px-[24px] text-[20px] font-medium leading-none text-white ${
+              startRecognitionUnavailable
+                ? 'bg-[#cfd7dd] shadow-none'
+                : 'bg-[#23bfb2] shadow-[0_8px_18px_rgba(35,191,178,0.24)] active:bg-[#12a99d]'
+            }`}
+            data-req-anchor="tablet-question-content-selection.start-recognition"
+            disabled={isDetecting || !activePage}
+            onClick={handleStartRecognitionClick}
             type="button"
           >
             开始识别
           </button>
+          {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-012', 'right-[18px] top-[8px]')}
         </div>
       </div>
 
       <main className="absolute bottom-0 left-0 right-0 top-[164px]">
         <section className="relative h-full w-full bg-[#f8fafb]">
           {status === 'loading' ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#9fa4a6]">
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center bg-[#9fa4a6]"
+              data-req-anchor="tablet-question-content-selection.detecting-state"
+            >
+              {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-013', 'left-1/2 top-[420px]')}
               <img alt="" className="h-[204px] w-[342px] object-contain" src="/tablet-ocr-loading.png" />
               <div className="mt-[28px] text-[23px] leading-none text-white">正在处理文件信息</div>
             </div>
           ) : activePage ? (
             isSeparateMode ? renderSeparateModeMaterials() : renderUnifiedModeMaterials()
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center"
+            >
               <div className="text-[25px] font-medium text-[#202124]">暂无可识别图片</div>
               <button className="mt-[24px] h-[48px] rounded-[8px] bg-[#23bfb2] px-[26px] text-[21px] text-white" onClick={onSupplement} type="button">
                 补充资料
@@ -7010,7 +8922,11 @@ function TabletOcrContentSelectionPage({
             </div>
           )}
           {status === 'failed' ? (
-            <div className="absolute right-[32px] top-[28px] rounded-full bg-[#fff8e8] px-[28px] py-[13px] text-[20px] leading-none text-[#b97412] shadow-[0_8px_20px_rgba(185,116,18,0.12)]">
+            <div
+              className="absolute right-[32px] top-[28px] rounded-full bg-[#fff8e8] px-[28px] py-[13px] text-[20px] leading-none text-[#b97412] shadow-[0_8px_20px_rgba(185,116,18,0.12)]"
+              data-req-anchor="tablet-question-content-selection.detect-failed-tip"
+            >
+              {renderQuestionsOnlyRequirementMarker('TABLET_QUESTION_CONTENT_SELECTION-018', 'right-[-14px] top-[-14px]')}
               自动切题未完成，可手动添加识别框
             </div>
           ) : null}
@@ -7020,9 +8936,16 @@ function TabletOcrContentSelectionPage({
         action={confirmAction}
         onCancel={() => setConfirmAction(null)}
         onConfirm={handleConfirmAction}
+        renderRequirementMarker={renderQuestionsOnlyRequirementMarker}
       />
       {showAddBoxModeTip ? (
-        <AddBoxModeTipDialog onConfirm={handleAddBoxModeTipConfirm} />
+        <AddBoxModeTipDialog
+          mode={addBoxInteractionMode}
+          onCancel={() => setShowAddBoxModeTip(false)}
+          onConfirm={handleAddBoxModeTipConfirm}
+          onModeChange={setAddBoxInteractionMode}
+          renderRequirementMarker={renderQuestionsOnlyRequirementMarker}
+        />
       ) : null}
     </div>
   );
@@ -7092,7 +9015,8 @@ function AddImageDialog({
 }
 
 export function TabletAiEntryPreview() {
-  const scale = useCanvasScale();
+  const previewContainerRef = useRef<HTMLElement | null>(null);
+  const scale = useCanvasScale(previewContainerRef);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isModeDialogOpen, setIsModeDialogOpen] = useState(false);
   const [isCaptureOpen, setIsCaptureOpen] = useState(false);
@@ -7104,17 +9028,269 @@ export function TabletAiEntryPreview() {
   const [supplementSelectedImages, setSupplementSelectedImages] = useState<SelectedImage[]>([]);
   const [supplementQuestionImages, setSupplementQuestionImages] = useState<SelectedImage[]>([]);
   const [supplementAnswerImages, setSupplementAnswerImages] = useState<SelectedImage[]>([]);
+  const [supplementSelectedImageOrder, setSupplementSelectedImageOrder] = useState<string[]>([]);
+  const [supplementQuestionImageOrder, setSupplementQuestionImageOrder] = useState<string[]>([]);
+  const [supplementAnswerImageOrder, setSupplementAnswerImageOrder] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedMode, setSelectedMode] = useState<RecognitionMode | ''>('');
+  const [prototypeFixture, setPrototypeFixture] = useState<TabletPrototypeFixture | null>(null);
   const [captureRole, setCaptureRole] = useState<ImageRole>('question');
   const [captureCloseTarget, setCaptureCloseTarget] = useState<CaptureCloseTarget>(null);
   const [userMode, setUserMode] = useState<SubjectMode>('multiple');
+  const [selectedRequirementId, setSelectedRequirementId] = useState<string | null>(null);
   const selectedImagesRef = useRef(selectedImages);
   const questionImagesRef = useRef(questionImages);
   const answerImagesRef = useRef(answerImages);
   const supplementSelectedImagesRef = useRef(supplementSelectedImages);
   const supplementQuestionImagesRef = useRef(supplementQuestionImages);
   const supplementAnswerImagesRef = useRef(supplementAnswerImages);
+  const tabletAiChatRequirementsById = useMemo(
+    () => createRequirementMap(tabletAiChatRecognizeHomeworkRegistry.requirements),
+    [],
+  );
+  const tabletAiChatDisplayNumbersByRequirementId = useMemo(
+    () => createRequirementDisplayNumberMap([tabletAiChatRecognizeHomeworkRegistry]),
+    [],
+  );
+  const tabletAiChatDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletAiChatMarkerIds,
+      tabletAiChatDisplayNumbersByRequirementId,
+    ),
+    [tabletAiChatDisplayNumbersByRequirementId],
+  );
+  const tabletRecognitionModeRequirementsById = useMemo(
+    () => createRequirementMap(tabletRecognitionModePageRegistry.requirements),
+    [],
+  );
+  const tabletRecognitionModeDisplayNumbersByRequirementId = useMemo(
+    () => createRequirementDisplayNumberMap([tabletRecognitionModePageRegistry]),
+    [],
+  );
+  const tabletRecognitionModeDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletRecognitionModeMarkerIds,
+      tabletRecognitionModeDisplayNumbersByRequirementId,
+    ),
+    [tabletRecognitionModeDisplayNumbersByRequirementId],
+  );
+  const tabletCapturePageRequirementsById = useMemo(
+    () => createRequirementMap(tabletCapturePageRegistry.requirements),
+    [],
+  );
+  const tabletCapturePageDisplayNumbersByRequirementId = useMemo(
+    () => createRequirementDisplayNumberMap([tabletCapturePageRegistry]),
+    [],
+  );
+  const tabletCapturePageDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletCaptureMarkerIds,
+      tabletCapturePageDisplayNumbersByRequirementId,
+    ),
+    [tabletCapturePageDisplayNumbersByRequirementId],
+  );
+  const tabletQuestionContentSelectionRequirementsById = useMemo(
+    () => createRequirementMap(tabletQuestionContentSelectionPageRegistry.requirements),
+    [],
+  );
+  const tabletQuestionContentSelectionDisplayNumbersByRequirementId = useMemo(
+    () => createRequirementDisplayNumberMap([tabletQuestionContentSelectionPageRegistry]),
+    [],
+  );
+  const tabletQuestionContentSelectionDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletQuestionContentSelectionMarkerIds,
+      tabletQuestionContentSelectionDisplayNumbersByRequirementId,
+    ),
+    [tabletQuestionContentSelectionDisplayNumbersByRequirementId],
+  );
+  const questionAnswerReviewRequirementsById = useMemo(
+    () => createRequirementMap(questionAnswerReviewStepRegistry.requirements),
+    [],
+  );
+  const questionAnswerReviewDisplayNumbersByRequirementId = useMemo(
+    () => createRequirementDisplayNumberMap([questionAnswerReviewStepRegistry]),
+    [],
+  );
+  const questionAnswerReviewDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletReviewImageMarkerIds,
+      questionAnswerReviewDisplayNumbersByRequirementId,
+    ),
+    [questionAnswerReviewDisplayNumbersByRequirementId],
+  );
+  const questionAnswerReviewRecognitionDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletReviewRecognitionMarkerIds,
+      questionAnswerReviewDisplayNumbersByRequirementId,
+    ),
+    [questionAnswerReviewDisplayNumbersByRequirementId],
+  );
+  const questionAnswerReviewQaImageDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletReviewQaImageMarkerIds,
+      questionAnswerReviewDisplayNumbersByRequirementId,
+    ),
+    [questionAnswerReviewDisplayNumbersByRequirementId],
+  );
+  const questionAnswerReviewQaRecognitionDisplayNumberScope = useMemo(
+    () => createRequirementDisplayNumberScope(
+      tabletReviewQaRecognitionMarkerIds,
+      questionAnswerReviewDisplayNumbersByRequirementId,
+    ),
+    [questionAnswerReviewDisplayNumbersByRequirementId],
+  );
+  const renderTabletAiChatRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    if (isModeDialogOpen) {
+      return null;
+    }
+
+    const requirement = tabletAiChatRequirementsById.get(requirementId);
+
+    if (!requirement) {
+      return null;
+    }
+
+    const resolvedDisplayNumber =
+      tabletAiChatDisplayNumbersByRequirementId.get(requirementId) ?? displayNumber;
+
+    return (
+      <RequirementMarker
+        requirement={requirement}
+        isOpen={selectedRequirementId === requirementId}
+        displayNumber={resolvedDisplayNumber}
+        displayNumberScope={tabletAiChatDisplayNumberScope}
+        className={className}
+        onToggle={() =>
+          setSelectedRequirementId((current) => (current === requirementId ? null : requirementId))
+        }
+        onClose={() => setSelectedRequirementId(null)}
+      />
+    );
+  };
+  const renderTabletRecognitionModeRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    const requirement = tabletRecognitionModeRequirementsById.get(requirementId);
+
+    if (!requirement) {
+      return null;
+    }
+
+    const resolvedDisplayNumber =
+      tabletRecognitionModeDisplayNumbersByRequirementId.get(requirementId) ?? displayNumber;
+
+    return (
+      <RequirementMarker
+        requirement={requirement}
+        isOpen={selectedRequirementId === requirementId}
+        displayNumber={resolvedDisplayNumber}
+        displayNumberScope={tabletRecognitionModeDisplayNumberScope}
+        className={className}
+        onToggle={() =>
+          setSelectedRequirementId((current) => (current === requirementId ? null : requirementId))
+        }
+        onClose={() => setSelectedRequirementId(null)}
+      />
+    );
+  };
+  const renderTabletCapturePageRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    const requirement = tabletCapturePageRequirementsById.get(requirementId);
+
+    if (!requirement) {
+      return null;
+    }
+
+    const resolvedDisplayNumber =
+      tabletCapturePageDisplayNumbersByRequirementId.get(requirementId) ?? displayNumber;
+
+    return (
+      <RequirementMarker
+        requirement={requirement}
+        isOpen={selectedRequirementId === requirementId}
+        displayNumber={resolvedDisplayNumber}
+        displayNumberScope={tabletCapturePageDisplayNumberScope}
+        className={className}
+        onToggle={() =>
+          setSelectedRequirementId((current) => (current === requirementId ? null : requirementId))
+        }
+        onClose={() => setSelectedRequirementId(null)}
+      />
+    );
+  };
+  const renderTabletQuestionContentSelectionRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    const requirement = tabletQuestionContentSelectionRequirementsById.get(requirementId);
+
+    if (!requirement) {
+      return null;
+    }
+
+    const resolvedDisplayNumber =
+      tabletQuestionContentSelectionDisplayNumbersByRequirementId.get(requirementId) ?? displayNumber;
+
+    return (
+      <RequirementMarker
+        requirement={requirement}
+        isOpen={selectedRequirementId === requirementId}
+        displayNumber={resolvedDisplayNumber}
+        displayNumberScope={tabletQuestionContentSelectionDisplayNumberScope}
+        className={className}
+        onToggle={() =>
+          setSelectedRequirementId((current) => (current === requirementId ? null : requirementId))
+        }
+        onClose={() => setSelectedRequirementId(null)}
+      />
+    );
+  };
+  const renderQuestionAnswerReviewRequirementMarker: RequirementMarkerRenderer = (
+    requirementId,
+    className,
+    displayNumber,
+  ) => {
+    const requirement = questionAnswerReviewRequirementsById.get(requirementId);
+
+    if (!requirement) {
+      return null;
+    }
+
+    const resolvedDisplayNumber =
+      questionAnswerReviewDisplayNumbersByRequirementId.get(requirementId) ?? displayNumber;
+    const displayNumberScope = tabletReviewRecognitionMarkerIds.includes(requirementId)
+      ? questionAnswerReviewRecognitionDisplayNumberScope
+      : tabletReviewQaRecognitionMarkerIds.includes(requirementId)
+        ? questionAnswerReviewQaRecognitionDisplayNumberScope
+        : tabletReviewQaImageMarkerIds.includes(requirementId)
+          ? questionAnswerReviewQaImageDisplayNumberScope
+          : questionAnswerReviewDisplayNumberScope;
+
+    return (
+      <RequirementMarker
+        requirement={requirement}
+        isOpen={selectedRequirementId === requirementId}
+        displayNumber={resolvedDisplayNumber}
+        displayNumberScope={displayNumberScope}
+        className={className}
+        onToggle={() =>
+          setSelectedRequirementId((current) => (current === requirementId ? null : requirementId))
+        }
+        onClose={() => setSelectedRequirementId(null)}
+      />
+    );
+  };
 
   useEffect(() => {
     selectedImagesRef.current = selectedImages;
@@ -7140,6 +9316,12 @@ export function TabletAiEntryPreview() {
     supplementAnswerImagesRef.current = supplementAnswerImages;
   }, [supplementAnswerImages]);
 
+  useEffect(() => {
+    if (isModeDialogOpen) {
+      setSelectedRequirementId(null);
+    }
+  }, [isModeDialogOpen]);
+
   useEffect(() => () => {
     revokeImageUrls(selectedImagesRef.current);
     revokeImageUrls(questionImagesRef.current);
@@ -7159,6 +9341,9 @@ export function TabletAiEntryPreview() {
     setSupplementSelectedImages([]);
     setSupplementQuestionImages([]);
     setSupplementAnswerImages([]);
+    setSupplementSelectedImageOrder([]);
+    setSupplementQuestionImageOrder([]);
+    setSupplementAnswerImageOrder([]);
   };
 
   const handleAlbumSelected = (files: File[]) => {
@@ -7175,6 +9360,7 @@ export function TabletAiEntryPreview() {
 
   const handleOpenRecognitionFlow = () => {
     clearSupplementImages();
+    setPrototypeFixture(null);
     setIsOcrPreviewOpen(false);
     setIsCaptureOpen(false);
     setIsModeDialogOpen(false);
@@ -7199,6 +9385,7 @@ export function TabletAiEntryPreview() {
 
   const handleModeSelect = (mode: RecognitionMode) => {
     clearSupplementImages();
+    setPrototypeFixture(null);
     revokeImageUrls(selectedImages);
     revokeImageUrls(questionImages);
     revokeImageUrls(answerImages);
@@ -7216,6 +9403,35 @@ export function TabletAiEntryPreview() {
     setCaptureCloseTarget('mode');
   };
 
+  const handlePrototypeStart = (
+    subjectType: PrototypeSubjectType,
+    mode: RecognitionMode,
+    targetStep: PrototypeTargetStep,
+  ) => {
+    clearSupplementImages();
+    revokeImageUrls(selectedImages);
+    revokeImageUrls(questionImages);
+    revokeImageUrls(answerImages);
+
+    const fixture = createTabletPrototypeFixture(subjectType, mode, targetStep);
+    const fixtureQuestionImages = fixture.images.filter((image) => image.role === 'question');
+    const fixtureAnswerImages = fixture.images.filter((image) => image.role === 'answer');
+
+    setPrototypeFixture(fixture);
+    setSelectedSubject(fixture.subject);
+    setSelectedMode(mode);
+    setSelectedImages(fixture.images);
+    setQuestionImages(fixtureQuestionImages);
+    setAnswerImages(fixtureAnswerImages);
+    setCaptureRole('question');
+    setCaptureCloseTarget(null);
+    setIsSubjectPickerOpen(false);
+    setIsUploadDialogOpen(false);
+    setIsCaptureOpen(false);
+    setIsModeDialogOpen(false);
+    setIsOcrPreviewOpen(true);
+  };
+
   const handleOpenCamera = () => {
     clearSupplementImages();
     setIsUploadDialogOpen(false);
@@ -7224,9 +9440,57 @@ export function TabletAiEntryPreview() {
   };
 
   const isSupplementCapture = captureCloseTarget === 'content';
+  const mergedSupplementSelectedImages = isSupplementCapture && selectedMode !== 'separate_answer'
+    ? mergeSupplementImagesByOrder(supplementSelectedImageOrder, selectedImages, supplementSelectedImages)
+    : [];
+  const mergedSupplementQuestionImages = isSupplementCapture && selectedMode === 'separate_answer'
+    ? mergeSupplementImagesByOrder(supplementQuestionImageOrder, questionImages, supplementQuestionImages)
+    : [];
+  const mergedSupplementAnswerImages = isSupplementCapture && selectedMode === 'separate_answer'
+    ? mergeSupplementImagesByOrder(supplementAnswerImageOrder, answerImages, supplementAnswerImages)
+    : [];
   const captureSelectedImages = isSupplementCapture ? supplementSelectedImages : selectedImages;
   const captureQuestionImages = isSupplementCapture ? supplementQuestionImages : questionImages;
   const captureAnswerImages = isSupplementCapture ? supplementAnswerImages : answerImages;
+  const managerSelectedImages = isSupplementCapture && selectedMode !== 'separate_answer'
+    ? mergedSupplementSelectedImages
+    : captureSelectedImages;
+  const managerQuestionImages = isSupplementCapture && selectedMode === 'separate_answer'
+    ? mergedSupplementQuestionImages
+    : captureQuestionImages;
+  const managerAnswerImages = isSupplementCapture && selectedMode === 'separate_answer'
+    ? mergedSupplementAnswerImages
+    : captureAnswerImages;
+  const managerImageCount = selectedMode === 'separate_answer'
+    ? managerQuestionImages.length + managerAnswerImages.length
+    : managerSelectedImages.length;
+  const supplementImageKeys = useMemo(
+    () => new Set([
+      ...supplementSelectedImages,
+      ...supplementQuestionImages,
+      ...supplementAnswerImages,
+    ].map((image) => getImageKey(image))),
+    [supplementAnswerImages, supplementQuestionImages, supplementSelectedImages],
+  );
+  const hasSupplementSelectedImageChanges =
+    supplementSelectedImages.length > 0 ||
+    getImageOrderSignature(mergedSupplementSelectedImages) !== getImageOrderSignature(selectedImages);
+  const hasSupplementSeparateImageChanges =
+    supplementQuestionImages.length > 0 ||
+    supplementAnswerImages.length > 0 ||
+    getImageOrderSignature(mergedSupplementQuestionImages) !== getImageOrderSignature(questionImages) ||
+    getImageOrderSignature(mergedSupplementAnswerImages) !== getImageOrderSignature(answerImages);
+  const hasSupplementCaptureChanges =
+    selectedMode === 'separate_answer'
+      ? hasSupplementSeparateImageChanges
+      : hasSupplementSelectedImageChanges;
+  const processedImageUrlSet = useMemo(
+    () => new Set([...selectedImages, ...questionImages, ...answerImages].map((image) => getImageKey(image))),
+    [answerImages, questionImages, selectedImages],
+  );
+  const getCaptureImageOrigin = (image: SelectedImage): CaptureImageOrigin => (
+    isSupplementCapture && processedImageUrlSet.has(getImageKey(image)) ? 'processed' : 'supplement'
+  );
 
   const getCurrentCaptureImages = () => {
     if (selectedMode === 'separate_answer') {
@@ -7275,21 +9539,40 @@ export function TabletAiEntryPreview() {
   };
 
   const handleDeleteCaptureImage = (image: SelectedImage, role?: ImageRole) => {
+    const imageKey = getImageKey(image);
+
+    if (isSupplementCapture && processedImageUrlSet.has(imageKey)) {
+      return;
+    }
+
     if (selectedMode === 'separate_answer' && role) {
       const updater = isSupplementCapture
         ? role === 'question' ? setSupplementQuestionImages : setSupplementAnswerImages
         : role === 'question' ? setQuestionImages : setAnswerImages;
-      updater((currentImages) => currentImages.filter((currentImage) => currentImage.url !== image.url));
+      updater((currentImages) => currentImages.filter((currentImage) => getImageKey(currentImage) !== imageKey));
+      if (isSupplementCapture) {
+        const orderUpdater = role === 'question' ? setSupplementQuestionImageOrder : setSupplementAnswerImageOrder;
+        orderUpdater((currentOrder) => currentOrder.filter((url) => url !== imageKey));
+      }
       revokeImageUrl(image);
       return;
     }
 
     const updater = isSupplementCapture ? setSupplementSelectedImages : setSelectedImages;
-    updater((currentImages) => currentImages.filter((currentImage) => currentImage.url !== image.url));
+    updater((currentImages) => currentImages.filter((currentImage) => getImageKey(currentImage) !== imageKey));
+    if (isSupplementCapture) {
+      setSupplementSelectedImageOrder((currentOrder) => currentOrder.filter((url) => url !== imageKey));
+    }
     revokeImageUrl(image);
   };
 
   const handleMoveCaptureImage = (image: SelectedImage, fromRole: ImageRole, toRole: ImageRole) => {
+    const imageKey = getImageKey(image);
+
+    if (isSupplementCapture && processedImageUrlSet.has(imageKey)) {
+      return;
+    }
+
     const fromUpdater = isSupplementCapture
       ? fromRole === 'question' ? setSupplementQuestionImages : setSupplementAnswerImages
       : fromRole === 'question' ? setQuestionImages : setAnswerImages;
@@ -7297,7 +9580,7 @@ export function TabletAiEntryPreview() {
       ? toRole === 'question' ? setSupplementQuestionImages : setSupplementAnswerImages
       : toRole === 'question' ? setQuestionImages : setAnswerImages;
 
-    fromUpdater((currentImages) => currentImages.filter((currentImage) => currentImage.url !== image.url));
+    fromUpdater((currentImages) => currentImages.filter((currentImage) => getImageKey(currentImage) !== imageKey));
     toUpdater((currentImages) => [
       ...currentImages,
       {
@@ -7306,22 +9589,55 @@ export function TabletAiEntryPreview() {
         role: toRole,
       },
     ]);
+
+    if (isSupplementCapture) {
+      const fromOrderUpdater = fromRole === 'question' ? setSupplementQuestionImageOrder : setSupplementAnswerImageOrder;
+      const toOrderUpdater = toRole === 'question' ? setSupplementQuestionImageOrder : setSupplementAnswerImageOrder;
+      fromOrderUpdater((currentOrder) => currentOrder.filter((url) => url !== imageKey));
+      toOrderUpdater((currentOrder) => (
+        currentOrder.includes(imageKey) ? currentOrder : [...currentOrder, imageKey]
+      ));
+    }
   };
 
   const handleQuestionCaptureReorder = (fromUrl: string, toUrl: string) => {
+    if (isSupplementCapture && selectedMode === 'separate_answer') {
+      setSupplementQuestionImageOrder((currentOrder) => {
+        const orderedImages = mergeSupplementImagesByOrder(currentOrder, questionImages, supplementQuestionImages);
+        return reorderImagesByUrl(orderedImages, fromUrl, toUrl).map((image) => getImageKey(image));
+      });
+      return;
+    }
+
     const updater = isSupplementCapture ? setSupplementQuestionImages : setQuestionImages;
 
-    updater((currentImages) => {
-      const fromIndex = currentImages.findIndex((image) => image.url === fromUrl);
-      const toIndex = currentImages.findIndex((image) => image.url === toUrl);
+    updater((currentImages) => reorderImagesByUrl(currentImages, fromUrl, toUrl));
+  };
 
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return currentImages;
+  const handleAnswerCaptureReorder = (fromUrl: string, toUrl: string) => {
+    if (isSupplementCapture && selectedMode === 'separate_answer') {
+      setSupplementAnswerImageOrder((currentOrder) => {
+        const orderedImages = mergeSupplementImagesByOrder(currentOrder, answerImages, supplementAnswerImages);
+        return reorderImagesByUrl(orderedImages, fromUrl, toUrl).map((image) => getImageKey(image));
+      });
+      return;
+    }
 
-      const nextImages = [...currentImages];
-      const [movedImage] = nextImages.splice(fromIndex, 1);
-      nextImages.splice(toIndex, 0, movedImage);
-      return nextImages;
-    });
+    const updater = isSupplementCapture ? setSupplementAnswerImages : setAnswerImages;
+
+    updater((currentImages) => reorderImagesByUrl(currentImages, fromUrl, toUrl));
+  };
+
+  const handleSelectedCaptureReorder = (fromUrl: string, toUrl: string) => {
+    if (isSupplementCapture) {
+      setSupplementSelectedImageOrder((currentOrder) => {
+        const orderedImages = mergeSupplementImagesByOrder(currentOrder, selectedImages, supplementSelectedImages);
+        return reorderImagesByUrl(orderedImages, fromUrl, toUrl).map((image) => getImageKey(image));
+      });
+      return;
+    }
+
+    setSelectedImages((currentImages) => reorderImagesByUrl(currentImages, fromUrl, toUrl));
   };
 
   const handleCapturePrimary = () => {
@@ -7332,10 +9648,20 @@ export function TabletAiEntryPreview() {
       }
 
       if (isSupplementCapture) {
-        const nextImages = [...supplementQuestionImages, ...supplementAnswerImages];
-        setQuestionImages((currentImages) => [...currentImages, ...supplementQuestionImages]);
-        setAnswerImages((currentImages) => [...currentImages, ...supplementAnswerImages]);
-        setSelectedImages((currentImages) => [...currentImages, ...nextImages]);
+        const nextQuestionImages = mergeSupplementImagesByOrder(
+          supplementQuestionImageOrder,
+          questionImages,
+          supplementQuestionImages,
+        );
+        const nextAnswerImages = mergeSupplementImagesByOrder(
+          supplementAnswerImageOrder,
+          answerImages,
+          supplementAnswerImages,
+        );
+
+        setQuestionImages(nextQuestionImages);
+        setAnswerImages(nextAnswerImages);
+        setSelectedImages([...nextQuestionImages, ...nextAnswerImages]);
         clearSupplementImages(false);
       } else {
         setSelectedImages([...questionImages, ...answerImages]);
@@ -7348,7 +9674,7 @@ export function TabletAiEntryPreview() {
     }
 
     if (isSupplementCapture) {
-      setSelectedImages((currentImages) => [...currentImages, ...supplementSelectedImages]);
+      setSelectedImages(mergeSupplementImagesByOrder(supplementSelectedImageOrder, selectedImages, supplementSelectedImages));
       clearSupplementImages(false);
     }
 
@@ -7359,6 +9685,7 @@ export function TabletAiEntryPreview() {
 
   const handleReplaceMaterials = () => {
     clearSupplementImages();
+    setPrototypeFixture(null);
     revokeImageUrls(selectedImages);
     revokeImageUrls(questionImages);
     revokeImageUrls(answerImages);
@@ -7372,6 +9699,9 @@ export function TabletAiEntryPreview() {
 
   const handleSupplementMaterials = () => {
     clearSupplementImages();
+    setSupplementSelectedImageOrder(selectedImages.map((image) => getImageKey(image)));
+    setSupplementQuestionImageOrder(questionImages.map((image) => getImageKey(image)));
+    setSupplementAnswerImageOrder(answerImages.map((image) => getImageKey(image)));
     setIsOcrPreviewOpen(true);
     setCaptureRole('question');
     setCaptureCloseTarget('content');
@@ -7411,16 +9741,22 @@ export function TabletAiEntryPreview() {
     ? captureRole === 'question'
       ? '拍摄题目图片'
       : '拍摄答案图片'
-    : '拍摄作业资料';
+    : isSupplementCapture
+      ? '补充作业资料'
+      : '拍摄作业资料';
   const capturePrimaryText = selectedMode === 'separate_answer'
     ? captureRole === 'question'
       ? '下一步：拍答案'
       : '去切题'
     : '去切题';
-  const capturePrimaryDisabled = currentCaptureImages.length === 0;
+  const capturePrimaryDisabled = isSupplementCapture
+    ? selectedMode === 'separate_answer' && captureRole === 'question'
+      ? managerImageCount === 0
+      : !hasSupplementCaptureChanges
+    : currentCaptureImages.length === 0;
 
   return (
-    <main className="flex min-h-screen items-center justify-center overflow-hidden bg-[#dfe2e6]">
+    <main ref={previewContainerRef} className="flex min-h-screen items-center justify-center overflow-hidden bg-[#dfe2e6]">
       <div
         style={{
           width: CANVAS_WIDTH * scale,
@@ -7441,6 +9777,7 @@ export function TabletAiEntryPreview() {
             isSubjectPickerOpen={isSubjectPickerOpen}
             onOpenUpload={handleOpenRecognitionFlow}
             onUserModeChange={handleUserModeChange}
+            renderRequirementMarker={renderTabletAiChatRequirementMarker}
             selectedSubject={selectedSubject}
             userMode={userMode}
           />
@@ -7455,28 +9792,36 @@ export function TabletAiEntryPreview() {
             <RecognitionModeDialog
               onClose={() => setIsModeDialogOpen(false)}
               onModeSelect={handleModeSelect}
+              onPrototypeStart={handlePrototypeStart}
+              renderRequirementMarker={renderTabletRecognitionModeRequirementMarker}
             />
           ) : null}
           {isCaptureOpen ? (
             <CaptureSimulator
               answerCount={captureAnswerImages.length}
-              answerImages={captureAnswerImages}
+              answerImages={managerAnswerImages}
               currentImages={currentCaptureImages}
               currentRole={selectedMode === 'separate_answer' ? captureRole : undefined}
+              getImageOrigin={getCaptureImageOrigin}
+              isSupplementMode={isSupplementCapture}
               mode={selectedMode}
               onAlbumSelected={handleCaptureAlbumSelected}
               onCapture={handleCapture}
               onClose={handleCloseCapture}
               onDeleteImage={handleDeleteCaptureImage}
               onMoveImage={handleMoveCaptureImage}
+              onAnswerReorder={handleAnswerCaptureReorder}
               onPrimary={handleCapturePrimary}
               onQuestionReorder={handleQuestionCaptureReorder}
+              onSelectedReorder={handleSelectedCaptureReorder}
               onRoleChange={setCaptureRole}
               primaryDisabled={capturePrimaryDisabled}
               primaryText={capturePrimaryText}
               questionCount={captureQuestionImages.length}
-              questionImages={captureQuestionImages}
-              selectedImages={captureSelectedImages}
+              questionImages={managerQuestionImages}
+              renderRequirementMarker={renderTabletCapturePageRequirementMarker}
+              selectedImages={managerSelectedImages}
+              supplementImageKeys={supplementImageKeys}
               title={captureTitle}
             />
           ) : null}
@@ -7487,6 +9832,9 @@ export function TabletAiEntryPreview() {
               onBack={handleBackToRecognitionMode}
               onReplace={handleReplaceMaterials}
               onSupplement={handleSupplementMaterials}
+              prototypeFixture={prototypeFixture}
+              renderRequirementMarker={renderTabletQuestionContentSelectionRequirementMarker}
+              renderReviewRequirementMarker={renderQuestionAnswerReviewRequirementMarker}
               subject={selectedSubject || SINGLE_SUBJECT}
             />
           ) : null}

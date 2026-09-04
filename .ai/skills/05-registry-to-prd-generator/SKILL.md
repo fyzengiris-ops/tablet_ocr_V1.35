@@ -1,101 +1,57 @@
 ---
 name: registry-to-prd-generator
-description: 当页面需求注册表已经生成，并且业务逻辑已通过页面角标/悬浮面板或右侧 PRD 面板核对后，需要从 src/requirements 生成页面级 Markdown PRD 文档时使用；用于为每个页面或组件输出可供 AI 阅读和后续开发使用的 docs/prd/*.prd.md，内容包含页面范围、上级页面/上游入口、下级页面/下游流程、范围边界、显示说明、操作说明、验收标准和来源追溯。
+description: 当页面需求注册表已经生成，并且业务逻辑已通过页面角标/悬浮面板或右侧 PRD 面板核对后，需要从 src/requirements 生成页面级 Markdown PRD 文档时使用；用于输出产品文档/prd-workflow/prd/*.prd.md。当前保守方案下，业务逻辑章节来自 display / operation，与悬浮面板、右侧 PRD 面板同源。
 ---
 
 # 注册表生成 Markdown PRD Skill
 
 ## 目标
 
-从 `src/requirements` 中的需求注册表生成页面级 Markdown PRD 文档。
+从 `src/requirements` 生成页面级 Markdown PRD。
 
-生成的 PRD 不是第一次核对业务逻辑的入口，而是用户已经通过页面角标、悬浮面板或右侧 PRD 面板核对后的归档文档。它不是人工随手写的摘要，而是面向 AI 和后续开发使用的结构化业务文档。它必须和页面核对入口、右侧 PRD 面板同源，均来自需求注册表。
+PRD 是核对后的归档文档，必须与角标悬浮面板、右侧 PRD 面板同源，均来自注册表的 `display` / `operation`。
 
-## 输入文件
-
-执行前必须读取：
+执行前必须先读：
 
 ```txt
-src/requirements/index.ts
-src/requirements/schema.ts
+.ai/skills/shared/project-context.md
 .ai/skills/shared/logic-writing-spec.md
 .ai/skills/05-registry-to-prd-generator/references/prd-document-template.md
+src/requirements/index.ts
+src/requirements/schema.ts
 ```
 
-如果用户指定某个页面或组件，还要读取对应的：
-
-```txt
-src/requirements/<页面或流程>.registry.ts
-```
-
-如果 `src/requirements` 不存在，停止执行，并提示用户先运行 `requirement-registry-writer`。
-
-如果用户还没有完成页面角标或右侧面板核对，可以继续生成草稿 PRD，但必须在完成摘要中明确说明“本次 PRD 基于当前注册表生成，尚未经过页面核对确认”。
+若指定页面，再读对应 `*.registry.ts`。  
+若注册表不存在，提示先跑 Skill2。  
+若尚未页面核对，可出草稿，但摘要中必须说明。
 
 ## 输出文件
 
-默认输出到：
-
 ```txt
-docs/prd/<页面或流程>.prd.md
+产品文档/prd-workflow/prd/<页面或流程>.prd.md
 ```
 
-示例：
+示例：`产品文档/prd-workflow/prd/tablet-ai-entry.prd.md`。
 
-```txt
-docs/prd/ai-chat-panel.prd.md
-docs/prd/homework-upload-flow.prd.md
-```
+## PRD 必须包含
 
-## PRD 必须包含的内容
+1. 页面范围（当前页 / 上游 / 下游 / 边界摘要）。
+2. 功能概述。
+3. 业务逻辑说明（按 `display` / `operation`）。
+4. 范围边界。
+5. 验收标准。
+6. 来源追溯。
 
-每份页面级 PRD 必须包含：
-
-1. 页面范围
-2. 功能概述
-3. 业务逻辑说明
-4. 范围边界
-5. 验收标准
-6. 来源追溯
-
-其中“页面范围”必须继续拆分为：
-
-- 当前页面
-- 上级页面/上游入口
-- 下级页面/下游流程
-- 范围边界摘要
-
-如果无法确认上级页面或下级页面，不能编造。必须写：
-
-- 未在当前代码或注册表中确认明确上级页面
-- 未在当前代码或注册表中确认明确下游流程
+无法确认上下游时，写“未在当前代码或注册表中确认”，不编造。
 
 ## 页面关系生成规则
 
-生成“上级页面/上游入口”和“下级页面/下游流程”时，按以下顺序获取信息：
+1. 优先读 `route`、`relatedFiles`、`activate`，以及 `display` / `operation` 中与跳转、生成、流转相关的条目。
+2. 再读代码中的路由、弹窗、Tab、步骤状态传递。
+3. 再读决策文件范围说明。
+4. 仍无法确认则明确写未确认。
 
-1. 优先读取注册表中的 `route`、`relatedFiles`、`activate`、`operation.dataFlow`。
-2. 读取相关代码文件，查找父页面调用、props、回调、路由跳转、弹窗打开、状态传递。
-3. 读取 `sourceDecisionFile` 中的范围边界和决策说明。
-4. 如果仍无法确认，明确写“未在当前代码或注册表中确认”，不要补脑。
-
-上级页面/上游入口应说明：
-
-- 上级页面
-- 入口位置
-- 进入方式
-- 传入数据
-- 依赖状态
-
-下级页面/下游流程应说明：
-
-- 下级页面或下游流程
-- 触发方式
-- 传出数据
-- 后续状态
-- 返回逻辑
-
-## 业务逻辑写作规则
+## 业务逻辑渲染规则
 
 必须遵循：
 
@@ -103,166 +59,87 @@ docs/prd/homework-upload-flow.prd.md
 .ai/skills/shared/logic-writing-spec.md
 ```
 
-每条需求按两个维度展示：
+对每条需求，按现有字段输出：
 
 ```md
+### <需求编号> <需求标题>
+
+来源：<代码事实 / 确认决策 / 代码事实 + 确认决策>
+
 #### 显示说明
-...
+1. <display.description 条目>
 
 #### 操作说明
-...
+1. <operation.description 条目>
+
+#### 权限规则
+1. <operation.permission 条目，如有>
+
+#### 数据流转
+1. <operation.dataFlow 条目，如有>
+
+#### 异常情况处理
+1. <operation.exceptions 条目，如有>
+
+#### 验收标准
+1. ...
 ```
 
-两者不能重复：
+规则：
 
-- 显示说明只写“用户在页面上看见什么”。
-- 操作说明只写“用户怎么操作，系统怎么处理”。
+- 只输出有内容的章节。
+- 标题名称和条目含义来自注册表，不二次编造。
+- 禁止跨章节复述同一规则。
+- 不输出空兜底句。
+- 不输出大段 TypeScript 原始数据。
+- `excludedDecisions` 写入范围边界，不混入普通需求。
 
-## 空兜底说明过滤规则
+## 空兜底过滤
 
-面向用户阅读的 Markdown PRD 默认不展示下列空兜底内容：
+不输出：
 
 - 无额外权限限制
 - 无额外数据流转
 - 无异常场景
 - 本对象无操作入口
 - 本对象仅展示
-- 空字符串
-- 空数组
+- 空字符串 / 空数组
 
-如果注册表中对应字段只有空兜底内容，就不要在 PRD 中输出该小项。
+## 验收标准与来源追溯
 
-例如：
+- 验收标准按需求编号分组，来自 `acceptance`。
+- 来源追溯包含：决策文件、相关代码、注册表文件。
+- `sourceType` 中文：代码事实 / 确认决策 / 代码事实 + 确认决策。
 
-```txt
-permission: "无额外权限限制"
-```
-
-不要生成：
-
-```md
-- 权限说明：无额外权限限制
-```
-
-只有当字段包含真实业务信息时，才输出。
-
-## requirements 渲染规则
-
-对 `registry.requirements` 中的每条需求，生成：
-
-```md
-### <需求编号> <需求标题>
-
-#### 显示说明
-...
-
-#### 操作说明
-...
-
-#### 验收标准
-...
-```
-
-规则：
-
-- 保持需求编号稳定，不要重排。
-- 按注册表顺序输出。
-- 显示 `sourceType` 时用中文说明：
-  - `code`：来自代码事实
-  - `decision`：来自确认决策
-  - `code+decision`：来自代码事实 + 确认决策
-- 不把 `excludedDecisions` 混入普通需求。
-- 不输出大段 TypeScript 原始数据。
-
-## excludedDecisions 渲染规则
-
-`excludedDecisions` 不属于普通需求卡片，应写入“范围边界”。
-
-建议格式：
-
-```md
-## 4. 范围边界
-
-### 4.1 本文档覆盖
-...
-
-### 4.2 本文档不覆盖
-- <objectName>：<reason>
-```
-
-如果没有 `excludedDecisions`，写：
-
-```md
-无额外排除项。
-```
-
-## 验收标准生成规则
-
-验收标准来自每条需求的 `acceptance`。
-
-生成时按需求编号分组：
-
-```md
-## 5. 验收标准
-
-### AI_CHAT_PANEL-001
-1. ...
-2. ...
-```
-
-不要把所有验收点混成无编号列表。
-
-## 来源追溯规则
-
-必须包含：
-
-- 来源决策文件
-- 相关代码文件
-- 需求注册表文件
-
-如果某条需求的 `sourceType` 是 `code`，说明它来自代码事实。  
-如果是 `decision` 或 `code+decision`，说明它包含已确认决策。
-
-## 文档标题规则
-
-标题使用：
+## 文档标题
 
 ```md
 # <页面名称> PRD
 ```
 
-例如：
+例如：`# 平板端识别作业资料 PRD`。
 
-```md
-# AI 小乐侧边面板组件 PRD
-```
-
-## 生成后回复用户
-
-完成后按下面格式回复：
+## 生成后摘要
 
 ```md
 一、生成结果
-- 已生成 PRD：docs/prd/<页面或流程>.prd.md
+- 已生成 PRD：产品文档/prd-workflow/prd/<页面或流程>.prd.md
 
 二、文档包含
 - 页面范围
-- 上级页面/上游入口
-- 下级页面/下游流程
-- 业务逻辑说明
+- 上游/下游
+- 业务逻辑说明（display / operation）
 - 范围边界
 - 验收标准
 - 来源追溯
 
 三、注意事项
-- <如果有无法确认的上游/下游，说明这里>
+- <如有未确认上下游，写这里>
 ```
 
 ## 输出约束
 
-- 除文件路径、代码字段、类型名、需求编号外，尽量使用中文。
-- 不要编造注册表中不存在、代码中无法确认的业务规则。
-- 不要展示空兜底说明。
-- 不要把范围边界当成普通需求。
-- 不要改动需求注册表，除非用户明确要求。
-- 如果发现注册表字段明显缺失，应提示用户先修正注册表或重新运行 `requirement-registry-writer`。
+- 尽量中文。
+- 不编造注册表与代码无法确认的规则。
+- 不改注册表，除非用户明确要求。
+- 若 `display` / `operation` 缺失，提示先修正 Skill2，不要自行补旧模板。

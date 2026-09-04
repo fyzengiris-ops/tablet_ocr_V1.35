@@ -7,7 +7,7 @@
 本参考文件只服务于右侧 PRD 面板联动：
 
 - 复用已经存在的 `data-req-anchor`。
-- 复用已经存在的需求选中状态或暴露一个共享选中控制。
+- 复用当前 `src/components/prd` 组件。
 - 不重复创建第二套页面编号角标。
 - 不把 Markdown PRD 生成混入前端联动实现。
 
@@ -15,12 +15,11 @@
 
 ## 总体布局
 
-推荐用一个阅读 Shell 包住原型页面：
+推荐复用现有 React Shell：
 
-```tsx
-<RequirementReaderShell registries={requirementRegistries}>
-  <PrototypePage />
-</RequirementReaderShell>
+```txt
+src/components/prd/RequirementReaderShell.tsx
+src/components/prd/RequirementPanel.tsx
 ```
 
 Shell 内部负责：
@@ -32,88 +31,53 @@ Shell 内部负责：
 - 页面锚点查找与滚动。
 - 和已有页面角标/悬浮面板同步选中需求。
 
-打开面板时：
-
-```txt
-display: grid
-grid-template-columns: minmax(0, 1fr) <panelWidth>px
-```
-
-关闭面板时：
-
-```txt
-grid-template-columns: minmax(0, 1fr)
-```
+打开面板时，原型区域应被挤压或使用现有布局规则避让右侧面板；不要让右侧面板覆盖核心操作。
 
 ## 拖拽宽度
 
 PRD 面板宽度建议：
 
-- 默认：360px 或浏览器宽度 25%
-- 最小：280px
-- 最大：浏览器宽度 50%
+- 默认：360px 或浏览器宽度 25%。
+- 最小：280px。
+- 最大：浏览器宽度 50%。
 
-拖拽时监听 pointer 事件，更新 `panelWidth`。
+拖拽时监听 Pointer Events，更新组件状态或 CSS 变量。
 
-不要在拖拽时使用 `Date.now()` 或随机数。
+不要在渲染逻辑中直接使用 `Date.now()`、`Math.random()` 或 `typeof window` 造成 hydration 风险；动态数据应放在客户端挂载后的 state/effect 中处理。
 
 ## 页面浮层定位
 
-如果原型页面内部有 `fixed right-0` 或 `fixed right-6` 的元素，打开 PRD 面板后会贴到浏览器最右侧并覆盖 PRD 面板。
+如果原型页面内部有贴右侧的浮层，打开 PRD 面板后可能与右侧面板重叠。
 
 处理策略：
 
-1. 优先把原型页面包在相对定位容器中。
-2. 对需要在原型区域内定位的浮层，改为基于原型容器定位。
-3. 如果必须使用 `fixed`，则在 PRD 面板打开时用 CSS 变量补偿右侧面板宽度。
-
-示例：
-
-```css
-.prototype-floating-right {
-  right: var(--prd-panel-offset, 24px);
-}
-```
-
-PRD 面板关闭：
-
-```css
---prd-panel-offset: 24px;
-```
-
-PRD 面板打开：
-
-```css
---prd-panel-offset: calc(var(--prd-panel-width) + 24px);
-```
-
-具体项目中可根据布局选择容器定位或 CSS 变量补偿。对 AI 小乐这类右侧面板，优先保证它出现在原型区域内，不要和 PRD 阅读面板重叠。
+1. 优先复用现有布局容器。
+2. 对需要在原型区域内定位的浮层，基于原型容器定位。
+3. 如果必须使用 fixed，则在 PRD 面板打开时用 CSS 变量补偿右侧面板宽度。
+4. 对上传弹窗、选择框、Popover 等浮层，优先保证可读、可点、不遮挡主流程。
 
 ## activateRequirement 建议流程
 
 ```ts
-async function activateRequirement(requirement) {
+async function activateRequirement(requirement: RequirementItem) {
   setSelectedRequirement(requirement.id);
 
   for (const step of requirement.activate) {
     switch (step.type) {
-      case 'navigate':
-        // 如果已经在目标页，不重复跳转。
+      case "navigate":
+        // 跳转到 /tablet-ai-entry；已在目标页则不重复跳转。
         break;
-      case 'openPanel':
-        // 调用页面提供的显式控制器，例如 openAIPanel。
+      case "openDialog":
+        // 调用页面提供的显式控制器，例如打开上传资料弹窗。
         break;
-      case 'openDialog':
-        // 调用页面提供的显式控制器，例如 openImportDialog。
+      case "setTab":
+      case "setStep":
+        // 设置平板端 OCR 流程步骤或 Tab。
         break;
-      case 'setTab':
-      case 'setStep':
-        // 设置页面状态。
+      case "scrollTo":
+        // 等待 React 更新后 querySelector(`[data-req-anchor="${step.anchorId}"]`)。
         break;
-      case 'scrollTo':
-        // 等待 DOM 更新后 querySelector(`[data-req-anchor="${step.anchorId}"]`)。
-        break;
-      case 'highlight':
+      case "highlight":
         // 设置当前高亮 anchorId。
         break;
     }
@@ -125,21 +89,41 @@ async function activateRequirement(requirement) {
 
 - 优先使用显式状态控制器。
 - 不要依赖按钮文案模拟点击。
-- 需要等待弹窗或面板挂载后，再滚动和高亮。
-- 如果某个激活动作暂时无法执行，要降级为滚动/高亮已存在锚点，并在代码注释或后续摘要中说明。
+- 需要等待弹窗、步骤或 Tab 挂载后，再滚动和高亮。
+- 如果某个激活动作暂时无法执行，要降级为滚动/高亮已存在锚点，并在摘要中说明。
+
+## 业务逻辑详情渲染
+
+当前保守方案下，右侧面板详情区读取：
+
+```txt
+requirement.display
+requirement.operation
+requirement.acceptance
+```
+
+禁止：
+
+- 自动补空栏目。
+- 展示空兜底说明。
+- 双编号。
+- 把未迁移的 `logicSections` 当成主正文。
 
 ## 过滤空兜底说明
 
-渲染业务逻辑前，统一过滤：
+若正文中出现下列空兜底，默认不展示：
 
 ```ts
 const emptyFallbacks = new Set([
-  '无额外权限限制',
-  '无额外数据流转',
-  '无异常场景',
-  '本对象无操作入口',
-  '本对象仅展示',
+  "无额外权限限制",
+  "无额外数据流转",
+  "无异常场景",
+  "本对象无操作入口",
+  "本对象仅展示",
+  "沿用页面权限",
+  "暂无",
+  "无",
 ]);
 ```
 
-数组字段过滤空数组；字符串字段过滤空字符串和上述兜底内容。
+空字符串、空数组不输出。
