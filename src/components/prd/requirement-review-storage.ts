@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import {
+  persistedRequirementReviewOverrides,
+  type PersistedRequirementReviewOverride,
+} from '@/requirements/review-overrides';
+
 export interface EditableRequirementSection {
   id: string;
   title: string;
@@ -33,26 +38,59 @@ interface RequirementReviewStore {
 const STORAGE_KEY = 'homework-ocr:requirement-review:v1';
 const CHANGE_EVENT = 'requirement-review-change';
 
+function toRequirementReviewOverride(
+  override: PersistedRequirementReviewOverride,
+): RequirementReviewOverride {
+  return {
+    displayNumber: override.displayNumber,
+    markerOffset: override.markerOffset,
+    sections: override.sections
+      ? override.sections.map((section) => ({
+          id: section.id,
+          title: section.title,
+          items: [...section.items],
+        }))
+      : undefined,
+  };
+}
+
+function readPersistedStore(): RequirementReviewStore {
+  return {
+    version: 1,
+    requirements: Object.fromEntries(
+      Object.entries(persistedRequirementReviewOverrides).map(([requirementId, override]) => [
+        requirementId,
+        toRequirementReviewOverride(override),
+      ]),
+    ),
+  };
+}
+
 function readStore(): RequirementReviewStore {
+  const persistedStore = readPersistedStore();
+
   if (typeof window === 'undefined') {
-    return { version: 1, requirements: {} };
+    return persistedStore;
   }
 
   try {
     const rawValue = window.localStorage.getItem(STORAGE_KEY);
 
     if (!rawValue) {
-      return { version: 1, requirements: {} };
+      return persistedStore;
     }
 
     const parsedValue = JSON.parse(rawValue) as Partial<RequirementReviewStore>;
 
     return {
       version: 1,
-      requirements: parsedValue.requirements ?? {},
+      requirements: {
+        ...persistedStore.requirements,
+        ...(parsedValue.requirements ?? {}),
+      },
     };
   } catch {
-    return { version: 1, requirements: {} };
+    return persistedStore;
   }
 }
 

@@ -159,7 +159,10 @@ export function RequirementFloatingCard({
     [baseSections],
   );
   const effectiveSections =
-    reviewOverride.sections && reviewOverride.sectionsSourceSignature === baseSectionsSourceSignature
+    reviewOverride.sections && (
+      reviewOverride.sectionsSourceSignature === undefined
+      || reviewOverride.sectionsSourceSignature === baseSectionsSourceSignature
+    )
       ? reviewOverride.sections
       : reviewOverride.sections && requirement.id === 'TABLET_REVIEW_IMAGE-009'
         ? mergeQuestionTypeFailureSupplement(reviewOverride.sections)

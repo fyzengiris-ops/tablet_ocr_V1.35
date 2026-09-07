@@ -12,7 +12,11 @@ import {
   isUsefulRequirementText,
   splitTextIntoReadableItems,
 } from './requirement-utils';
-import { useRequirementReviewOverrides } from './requirement-review-storage';
+import {
+  type EditableRequirementSection,
+  type RequirementReviewOverride,
+  useRequirementReviewOverrides,
+} from './requirement-review-storage';
 
 interface RequirementPanelProps {
   registries: RequirementRegistry[];
@@ -35,6 +39,53 @@ function isUsefulReadableValue(value: string | string[]) {
   }
 
   return isUsefulRequirementText(value);
+}
+
+function findReviewSection(
+  sections: EditableRequirementSection[] | undefined,
+  sectionId: string,
+) {
+  const section = sections?.find((item) => item.id === sectionId);
+
+  if (!section || section.items.length === 0) {
+    return null;
+  }
+
+  return section;
+}
+
+function applyReviewOverrideToRequirement(
+  requirement: RequirementItem,
+  reviewOverride: RequirementReviewOverride | undefined,
+): RequirementItem {
+  if (!reviewOverride?.sections || reviewOverride.sections.length === 0) {
+    return requirement;
+  }
+
+  const displaySection = findReviewSection(reviewOverride.sections, 'display.description');
+  const operationDescriptionSection = findReviewSection(reviewOverride.sections, 'operation.description');
+  const permissionSection = findReviewSection(reviewOverride.sections, 'operation.permission');
+  const dataFlowSection = findReviewSection(reviewOverride.sections, 'operation.dataFlow');
+  const exceptionsSection = findReviewSection(reviewOverride.sections, 'operation.exceptions');
+
+  return {
+    ...requirement,
+    display: {
+      ...requirement.display,
+      title: displaySection?.title ?? requirement.display.title,
+      description: displaySection ? displaySection.items : requirement.display.description,
+    },
+    operation: {
+      ...requirement.operation,
+      title: operationDescriptionSection?.title ?? requirement.operation.title,
+      description: operationDescriptionSection
+        ? operationDescriptionSection.items
+        : requirement.operation.description,
+      permission: permissionSection ? permissionSection.items : requirement.operation.permission,
+      dataFlow: dataFlowSection ? dataFlowSection.items : requirement.operation.dataFlow,
+      exceptions: exceptionsSection ? exceptionsSection.items : requirement.operation.exceptions,
+    },
+  };
 }
 
 function EmphasizedFlowText({ value }: { value: string }) {
@@ -179,8 +230,14 @@ export function RequirementPanel({
     [displayNumberRegistries, registries, reviewOverrides],
   );
   const allRequirementsById = useMemo(
-    () => createRequirementMap((allRegistries ?? registries).flatMap(r => r.requirements)),
-    [allRegistries, registries],
+    () => createRequirementMap(
+      (allRegistries ?? registries).flatMap(r =>
+        r.requirements.map((requirement) =>
+          applyReviewOverrideToRequirement(requirement, reviewOverrides[requirement.id]),
+        ),
+      ),
+    ),
+    [allRegistries, registries, reviewOverrides],
   );
 
   return (
@@ -206,18 +263,27 @@ export function RequirementPanel({
             <h3 className="text-xs font-semibold text-gray-900">需求列表</h3>
             <div className="mt-2 space-y-3">
               {registries.map((registry) => {
-                const requirementGroups = getRequirementDisplayGroups(registry, allRequirementsById);
+                const registryWithReviewedRequirements = {
+                  ...registry,
+                  requirements: registry.requirements.map((requirement) =>
+                    applyReviewOverrideToRequirement(requirement, reviewOverrides[requirement.id]),
+                  ),
+                };
+                const requirementGroups = getRequirementDisplayGroups(
+                  registryWithReviewedRequirements,
+                  allRequirementsById,
+                );
 
                 return (
-                  <div key={registry.registryId}>
+                  <div key={registryWithReviewedRequirements.registryId}>
                     <div className="mb-2 rounded-md border-l-4 border-emerald-500 bg-emerald-50 px-2.5 py-2">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate text-sm font-semibold text-gray-900">{registry.pageName}</div>
+                        <div className="truncate text-sm font-semibold text-gray-900">{registryWithReviewedRequirements.pageName}</div>
                         <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                           {registry.requirements.length} 条
                         </div>
                       </div>
-                      <div className="mt-0.5 truncate text-[11px] text-emerald-700">{registry.module}</div>
+                      <div className="mt-0.5 truncate text-[11px] text-emerald-700">{registryWithReviewedRequirements.module}</div>
                     </div>
 
                     <div className="space-y-3">
