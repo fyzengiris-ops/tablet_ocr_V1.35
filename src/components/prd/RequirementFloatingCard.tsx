@@ -28,6 +28,16 @@ interface RequirementFloatingCardProps {
   onClose: () => void;
 }
 
+function normalizeEditableSections(sections: EditableRequirementSection[]) {
+  return sections
+    .map((section) => ({
+      ...section,
+      title: section.title.trim() || '业务规则',
+      items: section.items.map((item) => item.trim()).filter(Boolean),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
 function EmphasizedFlowText({ value }: { value: string }) {
   const match = value.match(/^(正常拍摄流程|补充资料流程)：([\s\S]*)$/);
 
@@ -180,13 +190,7 @@ export function RequirementFloatingCard({
   const [draftSections, setDraftSections] = useState<EditableRequirementSection[]>(effectiveSections);
 
   const saveEdits = useCallback(() => {
-    const normalizedSections = draftSections
-      .map((section) => ({
-        ...section,
-        title: section.title.trim() || '业务规则',
-        items: section.items.map((item) => item.trim()).filter(Boolean),
-      }))
-      .filter((section) => section.items.length > 0);
+    const normalizedSections = normalizeEditableSections(draftSections);
 
     updateReviewOverride({
       sections: normalizedSections,
@@ -253,6 +257,23 @@ export function RequirementFloatingCard({
       setDraftSections(effectiveSections);
     }
   }, [effectiveSections, isEditing]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
+
+    const saveDraftTimer = window.setTimeout(() => {
+      updateReviewOverride({
+        sections: normalizeEditableSections(draftSections),
+        sectionsSourceSignature: baseSectionsSourceSignature,
+      });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(saveDraftTimer);
+    };
+  }, [baseSectionsSourceSignature, draftSections, isEditing, updateReviewOverride]);
 
   useEffect(() => {
     if (!isEditing) {

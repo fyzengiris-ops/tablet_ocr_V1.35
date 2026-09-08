@@ -16,6 +16,65 @@ export interface PersistedRequirementReviewOverride {
 }
 
 export const persistedRequirementReviewOverrides: Record<string, PersistedRequirementReviewOverride> = {
+  "REVIEW_STEP-001": {
+    "displayNumber": 18
+  },
+  "REVIEW_STEP-002": {
+    "displayNumber": 5
+  },
+  "REVIEW_STEP-003": {
+    "displayNumber": 20
+  },
+  "REVIEW_STEP-004": {
+    "displayNumber": 29
+  },
+  "REVIEW_STEP-005": {
+    "displayNumber": 27
+  },
+  "REVIEW_STEP-006": {
+    "displayNumber": 1
+  },
+  "REVIEW_STEP-007": {
+    "displayNumber": 10
+  },
+  "REVIEW_STEP-008": {
+    "displayNumber": 14
+  },
+  "REVIEW_STEP-009": {
+    "displayNumber": 16
+  },
+  "REVIEW_STEP-012": {
+    "displayNumber": 12
+  },
+  "REVIEW_STEP-013": {
+    "displayNumber": 6
+  },
+  "REVIEW_STEP-014": {
+    "displayNumber": 7
+  },
+  "REVIEW_STEP-015": {
+    "displayNumber": 22
+  },
+  "REVIEW_STEP-016": {
+    "displayNumber": 24
+  },
+  "REVIEW_STEP-017": {
+    "displayNumber": 26
+  },
+  "REVIEW_STEP-018": {
+    "displayNumber": 28
+  },
+  "TABLET_AI_CHAT_INPUT_DISABLED-001": {
+    "sections": [
+      {
+        "id": "operation.description",
+        "title": "不可输入",
+        "items": [
+          "去掉底部的对话输入框，在没有AI生成的时候，无内容，在有AI生成的时候，底部显示内容正在生成中的加载效果，可以操作暂停。最终样式见UI稿，PC端已实现"
+        ]
+      }
+    ]
+  },
   "TABLET_AI_CHAT_RECOGNIZE-001": {
     "markerOffset": {
       "x": 0,
@@ -50,17 +109,6 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "数据流转",
         "items": [
           "点击动作只启动本次识别流程的前置状态，不生成聊天记录数据。"
-        ]
-      }
-    ]
-  },
-  "TABLET_AI_CHAT_INPUT_DISABLED-001": {
-    "sections": [
-      {
-        "id": "operation.description",
-        "title": "不可输入",
-        "items": [
-          "去掉底部的对话输入框，在没有AI生成的时候，无内容，在有AI生成的时候，底部显示内容正在生成中的加载效果，可以操作暂停。最终样式见UI稿，PC端已实现"
         ]
       }
     ]
@@ -101,121 +149,6 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "异常处理",
         "items": [
           "如果当前账号没有可用学段学科，也按多学科用户的效果走，但是显示提示文案为——您当前还没有任课学科，请先完善任课学科后，再进行识别操作呢~"
-        ]
-      }
-    ]
-  },
-  "TABLET_RECOGNITION_MODE-001": {
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "标题展示",
-        "items": [
-          "页面顶部展示返回入口\n标题「选择识别方式」和说明文案「（根据资料内容选择识别方式）」。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "返回规则",
-        "items": [
-          "用户在当前步骤或后续流程中点击返回时，只要还没有上传图片或拍摄图片，就返回至上一步页面。",
-          "当前页面返回到 AI 小乐面板时，AI 小乐面板恢复为三个快捷指令状态，不展示学科选择状态。"
-        ]
-      },
-      {
-        "id": "operation.permission",
-        "title": "权限规则",
-        "items": [
-          "沿用平板端 AI 小乐「帮我识别作业资料」入口的使用范围。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "未上传或未拍摄资料前返回，不产生识别资料数据；",
-          "已选学科不在 AI 小乐面板继续展示，后续重新发起识别时按入口流程重新承接。"
-        ]
-      }
-    ]
-  },
-  "TABLET_RECOGNITION_MODE-002": {
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "卡片说明",
-        "items": [
-          "第一张识别方式卡片展示标题「仅识别题目」和适用场景的说明文案——「适用于只包含题目、不包含答案解析的资料」。",
-          "该模式用于用户只需要识别题目内容的资料。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "选择规则",
-        "items": [
-          "用户点击「仅识别题目」卡片后，该识别方式立即生效，并直接进入拍摄/上传资料流程。",
-          "即使资料中包含答案解析，用户仍可选择该模式继续处理；",
-          "后续流程只识别题目，答案解析不参与处理。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "后续识别结果只保留题目内容。"
-        ]
-      }
-    ]
-  },
-  "TABLET_RECOGNITION_MODE-003": {
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "卡片说明",
-        "items": [
-          "第二张识别方式卡片展示标题：「题目+答案」、标签「一题一答」和适用场景的说明文案——「适用于题目与答案解析紧挨着出现的资料」。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "选择规则",
-        "items": [
-          "用户点击「一题一答」卡片后，该识别方式立即生效，并直接进入拍摄/上传资料流程。",
-          "该模式只适用于题目和答案解析紧挨着排列的资料。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "后续按题目与答案解析同页相邻的业务口径处理。"
-        ]
-      }
-    ]
-  },
-  "TABLET_RECOGNITION_MODE-004": {
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "卡片说明",
-        "items": [
-          "第三张识别方式卡片展示标题「题目+答案」、标签「题答分页」和适用场景的说明文案——「适用于题目与答案解析分开拍摄的资料」。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "分类流转",
-        "items": [
-          "用户点击「题答分页」卡片后，该识别方式立即生效，并直接进入拍摄/上传资料流程。",
-          "后续上传/拍摄资料环节使用「题目图片 / 答案图片」分类替代 PC 端文件用途弹窗。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "「题答分页」作为本次识别方式传递给后续拍摄/上传流程；",
-          "后续题目图片用于切题和题目识别，答案图片用于答案解析匹配。"
         ]
       }
     ]
@@ -339,15 +272,15 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "数据流转",
         "items": [
           "相册图片按添加顺序进入当前任务，越先拍摄或越先添加的图片，展示在越上面",
-          "题答分页模式下，题目图片和答案图片合计最多 24 张。\n\n仅题目模式或一题一答的模式下，总计图片24张"
+          "【9.7需求评审后调整】题答分页模式下，题目图片和答案图片各24张，累计最多 48 张。\n\n仅题目模式或一题一答的模式下，总计图片24张"
         ]
       },
       {
         "id": "operation.exceptions",
         "title": "异常处理",
         "items": [
-          "单次识别最多 24 张图片；",
-          "达到上限后，应阻止继续添加新图片。\n\n从相册选择的按钮不可点击，拍摄按钮不可点击，点击后显示toast提示——单次最多识别24张图片"
+          "单次识别最多 48 张图片；",
+          "达到上限后，应阻止继续添加新图片。\n\n从相册选择的按钮不可点击，拍摄按钮不可点击，点击后显示toast提示——单次最多识别48张图片"
         ]
       }
     ]
@@ -367,9 +300,9 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.description",
         "title": "生成图片",
         "items": [
-          "优选方案为第一次点击拍照后，系统自动框选图片中有内容的区域；",
+          "第一次点击拍照后，系统自动框选图片中有内容的区域；",
           "用户可以手动调整框选范围，再次点击确认生成图片。",
-          "若自动框选不可用，则第一次点击出现默认裁剪框，用户调整后再次点击确认生成图片。"
+          "【9.7需求评审后补充】若页面无可自动框选的内容，则自动框选整个画面，用户可手动调整\n\n【9.7需求评审后补充】原来线上在拍摄图片时，切换横竖屏的功能还是保留着"
         ]
       },
       {
@@ -421,7 +354,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "数据流转",
         "items": [
           "正常拍摄流程：\n点击「下一步：拍答案」只切换拍摄阶段；点击「去切题」后，按当前已拍资料进入后续选择识别内容流程。",
-          "补充资料流程：\n点击「去切题」后，后续选择识别内容页按补充资料后的最新图片顺序展示；\n如果只新增图片且未调整旧图片顺序，可优先保留旧图片的原切题结果，只处理新增图片；\n\n如果调整了旧图片顺序，或无法保留旧切题结果，则按最新图片顺序重新切题。"
+          "补充资料流程：\n点击「去切题」后，后续选择识别内容页按补充资料后的最新图片顺序展示；\n如果只新增图片且未调整旧图片顺序，可优先保留旧图片的原切题结果，只处理新增图片；\n\n【9.7需求评审后调整】如果调整了已处理图片顺序，则按最新图片顺序，全部重新切题。"
         ]
       },
       {
@@ -501,7 +434,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "display.description",
         "title": "操作入口",
         "items": [
-          "正常拍摄流程：\n图片管理面板中的图片行展示排序入口。\n\n题答分页模式下，题目图片和答案图片分别展示在各自分组内，并提供「移到答案」或「移到题目」入口。",
+          "正常拍摄流程：\n图片管理面板中的图片行展示排序入口。\n\n题答分页模式下，题目图片和答案图片分别展示在各自分组内，并提供「移到答案」或「移到题目」入口。\n\n【9.7需求评审后补充】每张图片不显示名称和序号，用户将某张图片调整排序后，显示toast提示——调整成功\n\n同时用户查看大图的时候，可以滑动切换查看，并在底部显示1/2的进度",
           "补充资料流程：\n在正常拍摄流程的分组显示规则下，图片管理面板同时展示已处理图片和本次补充图片。\n\n已处理图片展示“已处理”标签，本次新增图片展示“本次补充”标签；\n\n两类图片都可以展示排序入口，本次补充图片可删除，已处理图片不展示删除按钮"
         ]
       },
@@ -509,8 +442,8 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.description",
         "title": "排序流转",
         "items": [
-          "正常拍摄流程：\n题答分页模式下，题目图片支持调整顺序，用户可以把题目图片移到答案分组，也可以把答案图片移到题目分组。图片移动后，图片进入目标分组，并参与该分组后续资料处理。",
-          "补充资料流程：\n仅识别题目、题目答案同图、题答分页三种模式下，用户都可以在图片管理面板中调整已处理图片和本次补充图片的顺序。\n\n用户只调整已处理图片顺序但没有新增图片时，也视为本次资料发生变化。"
+          "正常拍摄流程：\n题答分页模式下，题目图片支持调整顺序，用户可以把题目图片移到答案分组，也可以把答案图片移到题目分组。图片移动后，图片进入目标分组，并参与该分组后续资料处理。\n\n【9.7需求评审后补充】若答案区域已有24张，用户在题目分组点击【移到答案】的时候，显示toast提示——答案图片单次最多支持24张~\n\n【9.7需求评审后补充】若题目区域已有24张，用户在答案分组点击【移到题目】的时候，显示toast提示——题目图片单次最多支持24张~",
+          "补充资料流程：\n仅识别题目、题目答案同图、题答分页三种模式下，用户都可以在图片管理面板中调整已处理图片和本次补充图片的顺序。\n\n用户只调整已处理图片顺序但没有新增图片时，也视为本次资料发生变化。\n\n【9.7需求评审后补充】若答案区域已有24张，用户在题目分组点击【移到答案】的时候，显示toast提示——答案图片单次最多支持24张~\n\n【9.7需求评审后补充】若题目区域已有24张，用户在答案分组点击【移到题目】的时候，显示toast提示——题目图片单次最多支持24张~"
         ]
       },
       {
@@ -539,7 +472,65 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
+  "TABLET_QUESTION_CONTENT_SELECTION-001": {
+    "displayNumber": 1,
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "显示说明",
+        "items": [
+          "页面顶部展示返回入口和标题「选择识别内容」，用于承接用户已经完成拍摄或上传后的题目内容确认。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "返回规则",
+        "items": [
+          "用户点击返回时，如果当前没有切题框，直接返回上一页；",
+          "如果当前已有切题框，需要先提示用户返回后会清空当前框选内容。\n\n用户确认返回后，清空当前自动切题框、手动添加框和框选状态，再回到拍摄或上传资料页。\n\n用户取消返回时，停留在当前页面，并保留已拍资料、切题框和当前选中状态。"
+        ]
+      }
+    ]
+  },
+  "TABLET_QUESTION_CONTENT_SELECTION-002": {
+    "displayNumber": 2,
+    "markerOffset": {
+      "x": -140,
+      "y": 22
+    },
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "显示说明",
+        "items": [
+          "页面说明文案——(在左侧资料上选择要识别的完整题干内容)"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "范围规则",
+        "items": [
+          "仅识别题目模式下：完整题干内容包含题干、题目图片、选项、表格等完成题目识别所需的信息，不包含答案和解析。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "后续识别只处理用户选中的完整题干区域，答案和解析不进入本模式的识别结果。"
+        ]
+      },
+      {
+        "id": "operation.exceptions",
+        "title": "异常处理",
+        "items": [
+          "如果资料图片中同时出现答案或解析，用户也只需要选择题干相关内容。"
+        ]
+      }
+    ]
+  },
   "TABLET_QUESTION_CONTENT_SELECTION-003": {
+    "displayNumber": 3,
     "markerOffset": {
       "x": -46,
       "y": -1
@@ -568,95 +559,32 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "TABLET_QUESTION_CONTENT_SELECTION-001": {
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "显示说明",
-        "items": [
-          "页面顶部展示返回入口和标题「选择识别内容」，用于承接用户已经完成拍摄或上传后的题目内容确认。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "返回规则",
-        "items": [
-          "用户点击返回时，如果当前没有切题框，直接返回上一页；",
-          "如果当前已有切题框，需要先提示用户返回后会清空当前框选内容。\n\n用户确认返回后，清空当前自动切题框、手动添加框和框选状态，再回到拍摄或上传资料页。\n\n用户取消返回时，停留在当前页面，并保留已拍资料、切题框和当前选中状态。"
-        ]
-      }
-    ]
-  },
-  "TABLET_QUESTION_CONTENT_SELECTION-009": {
+  "TABLET_QUESTION_CONTENT_SELECTION-004": {
+    "displayNumber": 4,
     "markerOffset": {
-      "x": 474,
-      "y": 15
+      "x": -5,
+      "y": 5
     },
     "sections": [
       {
         "id": "display.description",
         "title": "显示说明",
         "items": [
-          "工具栏展示「清空」入口，用于用户一次性清除当前页面上的所有题目框。"
+          "工具栏展示「更换资料」入口，用于用户放弃当前资料并重新拍摄或上传。"
         ]
       },
       {
         "id": "operation.description",
-        "title": "清空规则",
+        "title": "操作规则",
         "items": [
-          "用户点击「清空」后，先展示确认提示。",
-          "确认后只删除当前所有自动切题框和手动添加的识别框，不删除资料图片，也不改变本次识别方式。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "清空后，当前框选列表、选中状态和框选统计同步归零；",
-          "资料图片仍保留在当前页面。"
-        ]
-      },
-      {
-        "id": "operation.exceptions",
-        "title": "异常处理",
-        "items": [
-          "用户取消清空时，保留所有切题框、手动识别框和选中状态。"
-        ]
-      }
-    ]
-  },
-  "TABLET_QUESTION_CONTENT_SELECTION-006": {
-    "markerOffset": {
-      "x": -39,
-      "y": -6
-    },
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "显示说明",
-        "items": [
-          "工具栏展示「添加识别框」入口，用于用户手动补充系统没有框出的题目区域。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "可用规则",
-        "items": [
-          "智能切题过程中不可使用「添加识别框」；",
-          "切题完成后允许用户开启手动添加识别框；",
-          "已经开始识别后，仍支持回到框选状态，也允许继续补充框选题目区域。"
-        ]
-      },
-      {
-        "id": "operation.exceptions",
-        "title": "异常处理",
-        "items": [
-          "如果系统完成自动切题后，整个资料页没有一个识别框，需要再当前页面显示一个弹窗提示，询问用户是否要手动添加识别框，样式可以参考原型"
+          "没有切题框时，用户点击「更换资料」直接回到拍页；",
+          "已有切题框时，需要先提示本次操作会清空当前框选内容。\n\n用户确认更换后，清空当前资料、切题框、手动框、框选状态和识别方式，并重新进入拍摄流程。\n\n用户取消更换时，保留当前资料和框选内容，不进入重新拍摄或上传流程。"
         ]
       }
     ]
   },
   "TABLET_QUESTION_CONTENT_SELECTION-005": {
+    "displayNumber": 5,
     "markerOffset": {
       "x": -19,
       "y": 3
@@ -695,112 +623,57 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "TABLET_QUESTION_CONTENT_SELECTION-004": {
+  "TABLET_QUESTION_CONTENT_SELECTION-006": {
+    "displayNumber": 7,
     "markerOffset": {
-      "x": -5,
-      "y": 5
+      "x": -39,
+      "y": -6
     },
     "sections": [
       {
         "id": "display.description",
         "title": "显示说明",
         "items": [
-          "工具栏展示「更换资料」入口，用于用户放弃当前资料并重新拍摄或上传。"
+          "工具栏展示「添加识别框」入口，用于用户手动补充系统没有框出的题目区域。"
         ]
       },
       {
         "id": "operation.description",
-        "title": "操作规则",
+        "title": "可用规则",
         "items": [
-          "没有切题框时，用户点击「更换资料」直接回到拍页；",
-          "已有切题框时，需要先提示本次操作会清空当前框选内容。\n\n用户确认更换后，清空当前资料、切题框、手动框、框选状态和识别方式，并重新进入拍摄流程。\n\n用户取消更换时，保留当前资料和框选内容，不进入重新拍摄或上传流程。"
-        ]
-      }
-    ]
-  },
-  "TABLET_QUESTION_CONTENT_SELECTION-002": {
-    "markerOffset": {
-      "x": -140,
-      "y": 22
-    },
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "显示说明",
-        "items": [
-          "页面说明文案——(在左侧资料上选择要识别的完整题干内容)"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "范围规则",
-        "items": [
-          "仅识别题目模式下：完整题干内容包含题干、题目图片、选项、表格等完成题目识别所需的信息，不包含答案和解析。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "后续识别只处理用户选中的完整题干区域，答案和解析不进入本模式的识别结果。"
+          "智能切题过程中不可使用「添加识别框」；",
+          "切题完成后允许用户开启手动添加识别框；",
+          "已经开始识别后，仍支持回到框选状态，也允许继续补充框选题目区域。"
         ]
       },
       {
         "id": "operation.exceptions",
         "title": "异常处理",
         "items": [
-          "如果资料图片中同时出现答案或解析，用户也只需要选择题干相关内容。"
+          "如果系统完成自动切题后，整个资料页没有一个识别框，需要再当前页面显示一个弹窗提示，询问用户是否要手动添加识别框，样式可以参考原型"
         ]
       }
     ]
   },
-  "TABLET_QUESTION_CONTENT_SELECTION-021": {
-    "displayNumber": 5,
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "显示说明",
-        "items": [
-          "用户点击【返回】按钮\n当前已有切题框时，弹窗标题展示「当前操作将清空本次框选内容」，无辅助提示文案，以当前注释为准",
-          "用户点击【更换资料】按钮\n当前已有切题框时，弹窗标题展示「当前操作将清空本次框选内容」——无辅助提示文案，以当前注释为准",
-          "用户点击【清空】按钮\n当前已有切题框时，弹窗标题展示「确认清空所有切题框吗？」——无辅助提示文案，以当前注释为准",
-          "三类弹窗都展示「取消」按钮；确认按钮根据操作类型分别展示「确认返回」「确认」「确认清空」。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "确认规则",
-        "items": [
-          "【返回】按钮触发的确认弹窗中，用户点击「取消」后停留在当前页面；点击「确认返回」后清空当前自动切题框和手动添加的识别框，并返回上一步。",
-          "【更换资料】按钮触发的确认弹窗中，用户点击「取消」后停留在当前页面；点击「确认」后清空当前资料、框选内容和识别方式，重新进入资料选择流程。",
-          "【清空】按钮触发的确认弹窗中，用户点击「取消」后停留在当前页面；点击「确认清空」后只清空切题框和手动识别框，不删除资料图片。"
-        ]
-      },
-      {
-        "id": "operation.dataFlow",
-        "title": "数据流转",
-        "items": [
-          "用户点击确认后，按对应操作范围清空数据；",
-          "用户点击取消后，保留当前页面状态。"
-        ]
-      }
-    ]
+  "TABLET_QUESTION_CONTENT_SELECTION-007": {
+    "displayNumber": 9,
+    "sections": []
   },
   "TABLET_QUESTION_CONTENT_SELECTION-008": {
-    "displayNumber": 7,
+    "displayNumber": 8,
     "sections": [
       {
         "id": "display.description",
         "title": "显示说明",
         "items": [
-          "用户首次在当前页面点击「添加识别框」时，展示添加方式选择和操作提示，帮助用户理解接下来如何在资料上生成识别框。\n\n目前是优先按照划线生成识别框的交互，如果这种交互能稳定实现，可只保留这种交互方式\n\n如果不能，则用第二张点击位置生成识别框的方式\n\n再次级的方案才是同时保留两种方式\n\n如果最后确定只采用某一种方式，这个弹窗会存在，只不过弹窗的文案会是交互的说明文案"
+          "用户首次在当前页面点击「添加识别框」时，展示操作提示——在需要处理的题目位置单击，即可生成识别框\n\n帮助用户理解接下来如何在资料上生成识别框。"
         ]
       },
       {
         "id": "operation.description",
         "title": "确认规则",
         "items": [
-          "用户选择添加方式后，点击「确定」关闭提示，并进入对应的添加识别框模式。\n\n如果最后是只确定采用某一种方式，则按钮文案为【我知道了】"
+          "点击「我知道了」关闭提示，并进入可手动添加识别框模式。"
         ]
       },
       {
@@ -814,33 +687,52 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.exceptions",
         "title": "异常处理",
         "items": [
-          "用户关闭弹窗或未确认时，不进入添加识别框模式。"
+          "若用户直接关闭弹窗，则不进入添加识别框模式。\n\n若用户后续再次点击添加识别框，还是需要显示这个弹窗\n\n用户点击【我知道了】之后，关闭弹窗，后续用户退出手动添加识别框状态后，再次点击【添加识别框】，就不需要再次显示这个弹窗了\n\n包括后续用户进入到核对识别结果页面的时候，点击添加识别框，也是这个处理逻辑——无论用户是在选择识别内容步骤，还是在核对识别结果步骤，点击添加识别框的时候，只要在本次ocr处理任务中，是首次点击添加识别框，或者是非首次点击，但是之前的点击都没有点击【我知道了】按钮（即之前从来没有真正进入到过手动添加识别框状态）点击添加识别框按钮的时候，都需要显示这个弹窗，只要用户进入到过手动添加识别框状态后，后续退出了了这个状态，再次点击添加识别框按钮的时候，在单次任务中，都不再显示这个弹窗了"
         ]
       }
     ]
   },
-  "TABLET_QUESTION_CONTENT_SELECTION-007": {
-    "displayNumber": 8,
+  "TABLET_QUESTION_CONTENT_SELECTION-009": {
+    "displayNumber": 10,
+    "markerOffset": {
+      "x": -65,
+      "y": 21
+    },
     "sections": [
       {
         "id": "display.description",
         "title": "显示说明",
         "items": [
-          "用户开启添加识别框时，需要先选择本次使用的框选方式，包括「画线生成识别框」和「点击位置生成识别框」。"
+          "工具栏展示「清空」入口，用于用户一次性清除当前页面上的所有题目框。"
         ]
       },
       {
         "id": "operation.description",
-        "title": "交互规则",
+        "title": "清空规则",
         "items": [
-          "选择「画线生成识别框」后，用户可在题目区域拖动画线，松手后生成一个识别框，并默认选中该框。",
-          "选择「点击位置生成识别框」后，用户点击资料上的题目位置，系统在点击处生成默认大小的识别框，用户可继续调整。"
+          "用户点击「清空」后，先展示确认提示。",
+          "确认后只删除当前所有自动切题框和手动添加的识别框，不删除资料图片，也不改变本次识别方式。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "清空后，当前框选列表、选中状态和框选统计同步归零；",
+          "资料图片仍保留在当前页面。"
+        ]
+      },
+      {
+        "id": "operation.exceptions",
+        "title": "异常处理",
+        "items": [
+          "用户取消清空时，保留所有切题框、手动识别框和选中状态。"
         ]
       }
     ]
   },
   "TABLET_QUESTION_CONTENT_SELECTION-010": {
-    "displayNumber": 11,
+    "displayNumber": 12,
     "markerOffset": {
       "x": 227,
       "y": -41
@@ -878,14 +770,14 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
     ]
   },
   "TABLET_QUESTION_CONTENT_SELECTION-011": {
-    "displayNumber": 12,
+    "displayNumber": 13,
     "markerOffset": {
       "x": 26,
       "y": -21
     }
   },
   "TABLET_QUESTION_CONTENT_SELECTION-012": {
-    "displayNumber": 13,
+    "displayNumber": 14,
     "markerOffset": {
       "x": -213,
       "y": -43
@@ -923,7 +815,14 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
+  "TABLET_QUESTION_CONTENT_SELECTION-013": {
+    "displayNumber": 15
+  },
+  "TABLET_QUESTION_CONTENT_SELECTION-014": {
+    "displayNumber": 16
+  },
   "TABLET_QUESTION_CONTENT_SELECTION-015": {
+    "displayNumber": 17,
     "markerOffset": {
       "x": 5,
       "y": 3
@@ -960,6 +859,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
     ]
   },
   "TABLET_QUESTION_CONTENT_SELECTION-016": {
+    "displayNumber": 18,
     "markerOffset": {
       "x": -1,
       "y": 2
@@ -996,17 +896,56 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
+  "TABLET_QUESTION_CONTENT_SELECTION-017": {
+    "displayNumber": 19
+  },
+  "TABLET_QUESTION_CONTENT_SELECTION-018": {
+    "displayNumber": 20
+  },
+  "TABLET_QUESTION_CONTENT_SELECTION-021": {
+    "displayNumber": 6,
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "显示说明",
+        "items": [
+          "用户点击【返回】按钮\n当前已有切题框时，弹窗标题展示「当前操作将清空本次框选内容」，无辅助提示文案，以当前注释为准",
+          "用户点击【更换资料】按钮\n当前已有切题框时，弹窗标题展示「当前操作将清空本次框选内容」——无辅助提示文案，以当前注释为准",
+          "用户点击【清空】按钮\n当前已有切题框时，弹窗标题展示「确认清空所有切题框吗？」——无辅助提示文案，以当前注释为准",
+          "三类弹窗都展示「取消」按钮；确认按钮根据操作类型分别展示「确认返回」「确认」「确认清空」。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "确认规则",
+        "items": [
+          "【返回】按钮触发的确认弹窗中，用户点击「取消」后停留在当前页面；点击「确认返回」后清空当前自动切题框和手动添加的识别框，并返回上一步。",
+          "【更换资料】按钮触发的确认弹窗中，用户点击「取消」后停留在当前页面；点击「确认」后清空当前资料、框选内容和识别方式，重新进入资料选择流程。",
+          "【清空】按钮触发的确认弹窗中，用户点击「取消」后停留在当前页面；点击「确认清空」后只清空切题框和手动识别框，不删除资料图片。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "用户点击确认后，按对应操作范围清空数据；",
+          "用户点击取消后，保留当前页面状态。"
+        ]
+      }
+    ]
+  },
   "TABLET_QUESTION_CONTENT_SELECTION-022": {
+    "displayNumber": 21,
     "markerOffset": {
       "x": -9,
       "y": -2
     }
   },
   "TABLET_QUESTION_CONTENT_SELECTION-023": {
-    "displayNumber": 10,
+    "displayNumber": 11,
     "markerOffset": {
-      "x": -253,
-      "y": -31
+      "x": -73,
+      "y": -4
     },
     "sections": [
       {
@@ -1015,7 +954,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "items": [
           "选择识别内容页面顶部展示「横屏」和「竖屏」两个视图切换入口，当前选中的视图应有明确的选中态。",
           "默认进入页面时展示横屏视图，用于承接大多数资料图片的横向预览和框选。",
-          "切换到竖屏视图后，资料展示区域按竖屏阅读尺寸重新排布，方便用户查看竖向拍摄或上传的资料。"
+          "切换到竖屏视图后，资料展示区域按竖屏阅读尺寸重新排布，方便用户查看竖向拍摄或上传的资料。\n\n【9.7需求评审后补充】在选择识别内容页面，还是保留着线上已经实现的旋转、和放大缩小的能力"
         ]
       },
       {
@@ -1042,8 +981,120 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "TABLET_QUESTION_CONTENT_SELECTION-013": {
-    "displayNumber": 13
+  "TABLET_RECOGNITION_MODE-001": {
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "标题展示",
+        "items": [
+          "页面顶部展示返回入口\n标题「选择识别方式」和说明文案「（根据资料内容选择识别方式）」。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "返回规则",
+        "items": [
+          "用户在当前步骤或后续流程中点击返回时，只要还没有上传图片或拍摄图片，就返回至上一步页面。",
+          "当前页面返回到 AI 小乐面板时，AI 小乐面板恢复为三个快捷指令状态，不展示学科选择状态。"
+        ]
+      },
+      {
+        "id": "operation.permission",
+        "title": "权限规则",
+        "items": [
+          "沿用平板端 AI 小乐「帮我识别作业资料」入口的使用范围。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "未上传或未拍摄资料前返回，不产生识别资料数据；",
+          "已选学科不在 AI 小乐面板继续展示，后续重新发起识别时按入口流程重新承接。"
+        ]
+      }
+    ]
+  },
+  "TABLET_RECOGNITION_MODE-002": {
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "卡片说明",
+        "items": [
+          "第一张识别方式卡片展示标题「仅识别题目」和适用场景的说明文案——「适用于只包含题目、不包含答案解析的资料」。",
+          "该模式用于用户只需要识别题目内容的资料。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "选择规则",
+        "items": [
+          "用户点击「仅识别题目」卡片后，该识别方式立即生效，并直接进入拍摄/上传资料流程。",
+          "即使资料中包含答案解析，用户仍可选择该模式继续处理；",
+          "后续流程只识别题目，答案解析不参与处理。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "后续识别结果只保留题目内容。"
+        ]
+      }
+    ]
+  },
+  "TABLET_RECOGNITION_MODE-003": {
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "卡片说明",
+        "items": [
+          "第二张识别方式卡片展示标题：「题目+答案」、标签「一题一答」和适用场景的说明文案——「适用于题目与答案解析紧挨着出现的资料」。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "选择规则",
+        "items": [
+          "用户点击「一题一答」卡片后，该识别方式立即生效，并直接进入拍摄/上传资料流程。",
+          "该模式只适用于题目和答案解析紧挨着排列的资料。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "后续按题目与答案解析同页相邻的业务口径处理。"
+        ]
+      }
+    ]
+  },
+  "TABLET_RECOGNITION_MODE-004": {
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "卡片说明",
+        "items": [
+          "第三张识别方式卡片展示标题「题目+答案」、标签「题答分页」和适用场景的说明文案——「适用于题目与答案解析分开拍摄的资料」。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "分类流转",
+        "items": [
+          "用户点击「题答分页」卡片后，该识别方式立即生效，并直接进入拍摄/上传资料流程。",
+          "后续上传/拍摄资料环节使用「题目图片 / 答案图片」分类替代 PC 端文件用途弹窗。"
+        ]
+      },
+      {
+        "id": "operation.dataFlow",
+        "title": "数据流转",
+        "items": [
+          "「题答分页」作为本次识别方式传递给后续拍摄/上传流程；",
+          "后续题目图片用于切题和题目识别，答案图片用于答案解析匹配。"
+        ]
+      }
+    ]
   },
   "TABLET_REVIEW_IMAGE-001": {
     "displayNumber": 1,
@@ -1107,32 +1158,37 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.description",
         "title": "加入试卷",
         "items": [
-          "【仅题目模式、题目+答案模式】：点击加入试卷的时候，校验题干是否完整，如果有题目的题干不完整，则显示弹窗提示——当前还有 X道题的题干为空，建议在当前环节补充后再加入试卷。\n\n其中的X是指：一道大题存在无题干的情况（即使一道大题有多个子题，且多个子题都无题干，也只记为1）\n\n弹窗按钮：我知道了，点击我知道了，仅关闭弹窗，同时需要自动定位到用户第一个没有题干的题目位置\n\n【仅题目模式、题目+答案模式】：用户点击加入试卷的时候，还需要校验是否有题卡处于非编辑（即编辑后未保存），若有，则显示弹窗提示——当前还有X道题处于编辑状态，请先保存后再加入试卷。\n\n其中的X：指大题的题数\n\n弹窗按钮：我知道了。点击后，自动定位到第一道需要用户手动点击完成的题卡位置\n\n【题目+答案模式】：在校验完题干 的基础上，还需要校验是否有未匹配答案或解析。\n\n有缺失时弹窗提示——「确认加入试卷吗？」「当前还有 X 道题的答案/解析没有补充，您可以在后续组卷页面使用AI批量补充功能，进行补充。\n\n其中的X：一道大题存在答案或解析未匹配即计1道\n\n点击取消按钮，停留在步骤4\n点击确认按钮，进入后续组卷页面，完整保留父题、子题、子题答案/解析、填空空位答案、题型、选项数和题目图片传递给下游。\n\n以上三个校验的提示的优先级为，题干完整性>题卡未保存>答案解析未匹配\n\n以上三个校验都通过后（第三个校验是用户点击确认后），都显示让用户选择组卷方式的弹窗：\n方式1：按题型加入试卷\n方式2：按题目顺序加入试卷\n\n两种方式的辅助提示文案，以原型为准，同时用户选择方式后，点击确认加入，则按照用户选择的方式进行组卷\n\n若用户选择的方式1，则可能改变用户在ocr环节已经调整好的题目顺序，\n\n若用户选择的方式2，则默认第一答题的题目名称显示为【第一大题】\n\n然后在组卷页面的底部，补充显示一个【返回录题】的按钮，点击后，返回到用户核对识别结果的页面\n\n当用户在组卷页面点击添加大题的时候，需要在用户当前操作的对象位置新增一个大题题号，并自动变更前面题号的题目数量，和后面题号的题目数量。不能再是添加大题后，显示一个空的大题区域，并显示暂无题目，支持从试卷结构拖拽添加区域\n\n举例\n一、第一大题（4题）\n1、\n2、\n3、\n4、\n\n用户的操作：在2、后面点击添加大题，需要的效果是\n一、第一大题（2题）\n1、\n2、\n二、请输入题目名称（2题）\n3、\n4、",
+          "【仅题目模式、题目+答案模式】：点击加入试卷的时候，校验题干是否完整，如果有题目的题干不完整，则显示弹窗提示——当前还有 X道题的题干为空，建议在当前环节补充后再加入试卷。\n\n其中的X是指：一道大题存在无题干的情况（即使一道大题有多个子题，且多个子题都无题干，也只记为1）\n\n弹窗按钮：我知道了，点击我知道了，仅关闭弹窗，同时需要自动定位到用户第一个没有题干的题目位置\n\n【9.7需求评审后补充】——忽略这段题干未保存的注释——【仅题目模式、题目+答案模式】：用户点击加入试卷的时候，还需要校验是否有题卡处于非编辑（即编辑后未保存），若有，则显示弹窗提示——当前还有X道题处于编辑状态，请先保存后再加入试卷。\n\n其中的X：指大题的题数\n\n弹窗按钮：我知道了。点击后，自动定位到第一道需要用户手动点击完成的题卡位置\n\n【题目+答案模式】：在校验完题干 的基础上，还需要校验是否有未匹配答案或解析。\n\n有缺失时弹窗提示——「确认加入试卷吗？」「当前还有 X 道题的答案/解析没有补充，您可以在后续组卷页面使用AI批量补充功能，进行补充。\n\n其中的X：一道大题存在答案或解析未匹配即计1道\n\n点击取消按钮，停留在步骤4\n点击确认按钮，进入后续组卷页面，完整保留父题、子题、子题答案/解析、填空空位答案、题型、选项数和题目图片传递给下游。\n\n以上三个校验的提示的优先级为，题干完整性>答案解析未匹配\n\n以上三个校验都通过后（第三个校验是用户点击确认后），都显示让用户选择组卷方式的弹窗：\n方式1：按题型加入试卷\n方式2：按题目顺序加入试卷\n\n两种方式的辅助提示文案，以原型为准，同时用户选择方式后，点击确认加入，则按照用户选择的方式进行组卷\n\n若用户选择的方式1，则可能改变用户在ocr环节已经调整好的题目顺序，\n\n若用户选择的方式2，则默认第一答题的题目名称显示为【第一大题】\n\n然后在组卷页面的底部，补充显示一个【返回录题】的按钮，点击后，返回到用户核对识别结果的页面\n\n当用户在组卷页面点击添加大题的时候，需要在用户当前操作的对象位置新增一个大题题号，并自动变更前面题号的题目数量，和后面题号的题目数量。不能再是添加大题后，显示一个空的大题区域，并显示暂无题目，支持从试卷结构拖拽添加区域\n\n举例\n一、第一大题（4题）\n1、\n2、\n3、\n4、\n\n用户的操作：在2、后面点击添加大题，需要的效果是\n一、第一大题（2题）\n1、\n2、\n二、请输入题目名称（2题）\n3、\n4、",
           "加入试卷前保存当前状态，供从试卷编辑页返回时恢复。",
           "题目数据保存失败时停留在步骤4并提示：「加入试卷失败，题目数据暂未保存，请重试」。"
         ]
       }
     ]
   },
-  "TABLET_REVIEW_IMAGE-013": {
-    "displayNumber": 4,
-    "markerOffset": {
-      "x": -17,
-      "y": -17
-    },
+  "TABLET_REVIEW_IMAGE-004": {
+    "displayNumber": 8,
     "sections": [
       {
         "id": "display.description",
-        "title": "工具展示",
+        "title": "联动状态",
         "items": [
-          "左侧资料工具栏展示旋转和放大缩小能力，用于辅助用户查看资料图片和识别框位置。"
+          "左侧资料展示识别框，右侧展示对应题卡；",
+          "当前选中的识别框和题卡需要形成清晰的高亮对应关系。"
         ]
       },
       {
         "id": "operation.description",
-        "title": "沿用线上",
+        "title": "定位规则",
         "items": [
-          "旋转和放大缩小的能力，和目前线上已经实现的保持一致即可，不用更改。"
+          "【9.7需求评审后调整】点击左侧识别框时，右侧高亮对应题卡，无需自动定位；",
+          "【9.7需求评审后调整】点击右侧题卡时，左侧自动定位到与右侧顶部的位置，并高亮对应识别框。"
+        ]
+      },
+      {
+        "id": "operation.exceptions",
+        "title": "异常处理",
+        "items": [
+          "如果对应框或题卡已被删除，不再触发对应定位。"
         ]
       }
     ]
@@ -1164,6 +1220,27 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "异常处理",
         "items": [
           "左侧无框选中时，置灰显示【继续识别】按钮。有框选中时，高亮【继续识别】按钮\n\n该逻辑以业务逻辑为准，不以原型为准"
+        ]
+      }
+    ]
+  },
+  "TABLET_REVIEW_IMAGE-006": {
+    "displayNumber": 11,
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "按钮状态",
+        "items": [
+          "当用户未选中识别框时，页面中部置灰展示「继续识别」按钮；\n\n当用户选中识别框时，继续识别按钮高亮",
+          "识别处理中按钮不可点击"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "生成规则",
+        "items": [
+          "点击继续识别后，新增题按左侧选框位置顺序插入到右侧题卡列表中；",
+          "如果用户调整的是已有题目的识别框，则覆盖原题卡。"
         ]
       }
     ]
@@ -1217,82 +1294,6 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "REVIEW_STEP-006": {
-    "displayNumber": 1
-  },
-  "REVIEW_STEP-002": {
-    "displayNumber": 5
-  },
-  "REVIEW_STEP-013": {
-    "displayNumber": 6
-  },
-  "REVIEW_STEP-014": {
-    "displayNumber": 7
-  },
-  "TABLET_REVIEW_IMAGE-004": {
-    "displayNumber": 8,
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "联动状态",
-        "items": [
-          "左侧资料展示识别框，右侧展示对应题卡；",
-          "当前选中的识别框和题卡需要形成清晰的高亮对应关系。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "定位规则",
-        "items": [
-          "点击左侧识别框时，右侧自动定到与左侧选框同高的位置，并高亮对应题卡；",
-          "点击右侧题卡时，左侧自动定位到与右侧同高的位置，并高亮对应识别框。"
-        ]
-      },
-      {
-        "id": "operation.exceptions",
-        "title": "异常处理",
-        "items": [
-          "如果对应框或题卡已被删除，不再触发对应定位。"
-        ]
-      }
-    ]
-  },
-  "REVIEW_STEP-007": {
-    "displayNumber": 10
-  },
-  "REVIEW_STEP-012": {
-    "displayNumber": 12
-  },
-  "TABLET_REVIEW_IMAGE-006": {
-    "displayNumber": 11,
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "按钮状态",
-        "items": [
-          "当用户未选中识别框时，页面中部置灰展示「继续识别」按钮；\n\n当用户选中识别框时，继续识别按钮高亮",
-          "识别处理中按钮不可点击"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "生成规则",
-        "items": [
-          "点击继续识别后，新增题按左侧选框位置顺序插入到右侧题卡列表中；",
-          "如果用户调整的是已有题目的识别框，则覆盖原题卡。"
-        ]
-      }
-    ]
-  },
-  "REVIEW_STEP-008": {
-    "displayNumber": 14
-  },
-  "REVIEW_STEP-009": {
-    "displayNumber": 16
-  },
-  "REVIEW_STEP-001": {
-    "displayNumber": 18
-  },
   "TABLET_REVIEW_IMAGE-009": {
     "displayNumber": 12,
     "markerOffset": {
@@ -1304,7 +1305,9 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "display.description",
         "title": "题型展示",
         "items": [
-          "题卡头部展示题型选择入口，用户在非编辑态和编辑态，都可调整当前题目的题型。"
+          "题卡头部展示题型选择入口，用户在非编辑态和编辑态，都可调整当前题目的题型。",
+          "题型识别失败时，题卡头部的题型选择器显示「识别失败」。",
+          "失败状态使用橙色边框和橙色文字提示，和正常识别出的绿色题型状态区分。"
         ]
       },
       {
@@ -1312,13 +1315,20 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "切换保护",
         "items": [
           "题型可选范围按当前学科限制；",
-          "已有子题、选项、多空答案等结构化内容时，切换题型前需要弹出确认——确认切换题型吗？\n\n切换题型将调整题目结构，可能清空子题、选项或填空答案，是否继续？\n\n弹窗按钮：取消，确定\n\n点击取消，仅关闭弹窗，\n点击确定，切换为用户新选择的题型。如果用户当前是在题目+答案模式下，切换题型后，需要根据用户切换的题型结构的一致性，尽可能保留用户的答案、题干、解析信息\n\n在仅题目模式下，切换题型的时候，也需要根据用户新选择的题型和当前题型的一致性，尽可能的保留用户原本的题干信息"
+          "已有子题、选项、多空答案等结构化内容时，切换题型前需要弹出确认——确认切换题型吗？\n\n切换题型将调整题目结构，可能清空子题、选项或填空答案，是否继续？\n\n弹窗按钮：取消，确定\n\n点击取消，仅关闭弹窗，\n点击确定，切换为用户新选择的题型。如果用户当前是在题目+答案模式下，切换题型后，需要根据用户切换的题型结构的一致性，尽可能保留用户的答案、题干、解析信息\n\n在仅题目模式下，切换题型的时候，也需要根据用户新选择的题型和当前题型的一致性，尽可能的保留用户原本的题干信息\n\n【9.8需求评审后补充】\n如果用户是从多选题，切换到单选题，答案选项默认保留第一个选项",
+          "题型识别请求失败时，题卡保留在核对列表中，并将题型状态标记为识别失败。",
+          "用户可通过调整识别框并继续识别，重新获取题型结果。",
+          "题型识别失败状态不自动改写为某个默认题型，避免把失败结果误当成已确认题型。"
+        ]
+      },
+      {
+        "id": "operation.exceptions",
+        "title": "异常处理",
+        "items": [
+          "如果所有题目都处于识别失败且没有可加入题目，加入试卷按钮保持不可用。"
         ]
       }
     ]
-  },
-  "REVIEW_STEP-003": {
-    "displayNumber": 20
   },
   "TABLET_REVIEW_IMAGE-010": {
     "displayNumber": 13,
@@ -1350,9 +1360,6 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "REVIEW_STEP-015": {
-    "displayNumber": 22
-  },
   "TABLET_REVIEW_IMAGE-011": {
     "displayNumber": 17,
     "sections": [
@@ -1361,13 +1368,10 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "截图展示",
         "items": [
           "图片模式下题卡主体展示题目截图；",
-          "进入编辑态后，用户可对题目截图进行裁剪。\n\n确认裁剪后只更新题目图片，不重新识别题干文本。\n\n取消裁剪时保留裁剪前图片。"
+          "进入编辑态后，用户可对题目截图进行裁剪。\n\n确认裁剪后只更新题目图片，不重新识别题干文本。\n\n【9.8需求评审后补充】\n若之前这个图片已经裁剪过，则再次选中图片后，底部显示【还原】按钮，点击后，把图片还原到该图片在裁剪前的最初状态\n\n取消裁剪时保留裁剪前图片。"
         ]
       }
     ]
-  },
-  "REVIEW_STEP-016": {
-    "displayNumber": 24
   },
   "TABLET_REVIEW_IMAGE-012": {
     "displayNumber": 16,
@@ -1388,17 +1392,28 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "REVIEW_STEP-017": {
-    "displayNumber": 26
-  },
-  "REVIEW_STEP-005": {
-    "displayNumber": 27
-  },
-  "REVIEW_STEP-018": {
-    "displayNumber": 28
-  },
-  "REVIEW_STEP-004": {
-    "displayNumber": 29
+  "TABLET_REVIEW_IMAGE-013": {
+    "displayNumber": 4,
+    "markerOffset": {
+      "x": -17,
+      "y": -17
+    },
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "工具展示",
+        "items": [
+          "左侧资料工具栏展示旋转和放大缩小能力，用于辅助用户查看资料图片和识别框位置。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "沿用线上",
+        "items": [
+          "旋转和放大缩小的能力，和目前线上已经实现的保持一致即可，不用更改。"
+        ]
+      }
+    ]
   },
   "TABLET_REVIEW_IMAGE-014": {
     "displayNumber": 9,
@@ -1415,7 +1430,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.description",
         "title": "框操作",
         "items": [
-          "点击已识别框时，如果该框已关联右侧题卡，则切换右侧对应题卡的当前选中状态。",
+          "点击已识别框时，如果该框已关联右侧题卡，则切换右侧对应题卡的当前选中状态。无需自动定位。",
           "拖动识别框主体可调整框的位置，拖动右下角控制点可调整框的大小。\n\n只要选框的坐标位置有了改动，识别框就需要自动选中，并显示【待重新识别】的标签\n\n哪怕用户通过拖动或四周的调整，已经把当前框选的区域和原始的区域完全不对应了，用户选中后点击继续识别，还是直接在右侧覆盖原题卡的位置",
           "点击删除按钮，显示弹窗提示——确认删除选框吗？\n\n删除该选框后，右侧对应的题目卡片也将一并删除，是否继续？\n\n弹窗按钮：取消，确定\n\n点击取消，仅隐藏弹窗，点击确定，同时将左右两侧对应的题卡和识别框都删除"
         ]
@@ -1529,163 +1544,6 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
       }
     ]
   },
-  "TABLET_REVIEW_RECOGNITION-006": {
-    "displayNumber": 1,
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "结构联动",
-        "items": [
-          "切换为选择题时展示选项区；\n切换为填空题时展示填空题题干与空位；\n切换为复合题时展示子题区；\n切换为普通非结构题时只展示题干。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "切换结果",
-        "items": [
-          "题型切换只保留可兼容字段。",
-          "切换为非选择题时，原选择题选项结构清空。",
-          "复合题切换为普通题时，原子题结构清空。",
-          "切换为填空题时，按题干中的空位维护填空题结构。"
-        ]
-      }
-    ]
-  },
-  "TABLET_REVIEW_RECOGNITION-001": {
-    "displayNumber": 3,
-    "markerOffset": {
-      "x": -163,
-      "y": 49
-    }
-  },
-  "TABLET_REVIEW_RECOGNITION-002": {
-    "displayNumber": 2,
-    "markerOffset": {
-      "x": 5,
-      "y": -25
-    },
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "题干展示",
-        "items": [
-          "识别模式题干字段展示题目文字内容；换行、选项和子题标记按识别内容保留为可核对文本。",
-          "题干为空或未识别出文本时，题干区域仍保留在题卡中，并显示空输入占位「题干」。",
-          "题干字段左上角展示【题】手动关联图标，用于把左侧资料中的题干区域重新关联到当前题卡。",
-          "进入题干关联状态后，左侧资料页隐藏原有识别框，只显示用户本次框选的精准识别框。",
-          "用户拖动画框时，左侧资料页展示青绿色半透明框选区域和放大镜，帮助确认框选边界。",
-          "生成精准识别框后，页面中间展示「精准识别」按钮；识别中按钮禁用，关联图标显示处理中状态。",
-          "查看态下题干不可直接编辑；编辑态下用户可修改题干文本。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "题干维护",
-        "items": [
-          "用户点击题卡「编辑」后，可在题干字段中补充或修改题目文字。",
-          "用户点击【题】手动关联图标后，当前题卡进入题干关联状态；再次点击同一图标退出关联状态。",
-          "题干关联状态下，用户只能在左侧非答案页资料中按住并拖拽生成精准识别框；框选宽度过小或高度过小时不生成识别框。",
-          "精准识别框生成后支持拖动调整位置、拖拽右下角调整大小，也支持点击删除图标取消本次框选。",
-          "用户点击「精准识别」后，系统识别精准识别框内的内容；识别完成后清空精准识别框并退出题干关联状态。",
-          "识别结果为普通文本时，文本回填到当前题卡或当前子题的题干区域。",
-          "识别结果包含选项时，系统按选项结果更新当前题卡或当前子题的选项内容，不把选项文本硬塞进题干。",
-          "题干关联识别只作为题干内容补充，不改写答案、解析和题型结构。",
-          "题干为空的题卡允许停留在核对列表中，用户可在核对页继续补充。",
-          "仅题目模式加入试卷前只校验是否存在可加入题目和题干内容，不校验答案或解析。"
-        ]
-      }
-    ]
-  },
-  "TABLET_REVIEW_RECOGNITION-003": {
-    "displayNumber": 3,
-    "markerOffset": {
-      "x": -655,
-      "y": -23
-    },
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "选项展示",
-        "items": [
-          "题型为单选题、多选题或判断题时，识别模式在题干下方展示选项区。",
-          "单选题和多选题按识别文本中实际拆出的连续选项数展示；未拆出时再按识别结果给出的选项数量展示，仍没有数量时默认展示 4 项。",
-          "单选题和多选题的选项数量展示范围为 2 到 26 项。",
-          "判断题固定展示 2 个选项，分别对应「对」和「错」。",
-          "选项区左上角展示【选项】手动关联图标，用于用户手动把左侧资料中的选项区域重新关联到当前题卡。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "选项维护",
-        "items": [
-          "进入编辑态后，用户可手动编辑选项区域的文本内容内容。\n\n非编辑态的时候，可直接点击关联icon，进行手动关联操作，可直接对右侧的选项区域进行替换",
-          "单选题和多选题进入可调整选项数；选项数最少 2 项、最多 26 项。",
-          "减少选项数时，低于2的时候，减号置灰；增加选项数时，已有选项内容按字母保留，新增选项为空，增加到26的时候，加号置灰",
-          "判断题不按普通选择题扩展选项数，始终保留 2 个选项。",
-          "用户点击【选项】手动关联图标后，当前题卡进入选项关联状态；再次点击同一图标退出关联状态。",
-          "选项关联状态下，用户在左侧非答案页资料中框选选项区域并执行识别，识别出的选项内容按选项字母回填到当前题卡或当前子题。",
-          "选项关联识别出的选项数量多于当前选项数时，选项数自动扩展到识别出的数量，但不超过 26 项。",
-          "题型切换为非选择题后，原选择题选项结构按不兼容结构清空。"
-        ]
-      }
-    ]
-  },
-  "TABLET_REVIEW_RECOGNITION-004": {
-    "displayNumber": 4,
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "空位展示",
-        "items": [
-          "题型为填空题时，识别模式按题干文本中的空位展示填空位置。",
-          "每个空位在题干中以编号空位样式展示，编号按题干内空位顺序从 1 开始。",
-          "题干没有空位时，不因为内部识别结果自动展示额外空位；用户可进入编辑态手动增加空位。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "空位维护",
-        "items": [
-          "用户进入编辑态后，可以按当前原型已实现的方式手动增加空位。",
-          "用户手动增加空位后，题干中的空位展示和空位数量同步更新。",
-          "切换为非填空题后，填空题空位结构按不兼容结构清空。"
-        ]
-      }
-    ]
-  },
-  "TABLET_REVIEW_RECOGNITION-005": {
-    "displayNumber": 5,
-    "markerOffset": {
-      "x": -640,
-      "y": 12
-    },
-    "sections": [
-      {
-        "id": "display.description",
-        "title": "子题展示",
-        "items": [
-          "题型为复合题时，识别模式在父题题干下方展示子题区。",
-          "每个子题展示子题序号、子题题型、子题题干；仅题目模式下不展示子题答案和解析。",
-          "英语阅读理解和完形填空的子题题型固定显示为「单选」，不展示可切换的子题题型下拉。",
-          "英语完形填空在子题区只展示「子题数」「题型：单选」「选项数」三个结构维护入口，不展示「+ 」子题按钮和子题题型菜单。",
-          "其他可添加子题的题型展示子题题型选择器，选项按当前学科可用题型展示，题型名称去掉末尾「题」字。",
-          "自动拆分失败时仍展示 1 个空子题，提示用户在编辑态继续补充子题内容。"
-        ]
-      },
-      {
-        "id": "operation.description",
-        "title": "子题维护",
-        "items": [
-          "进入编辑态后，用户可修改子题题型和子题题干。",
-          "英语完形填空只能通过「子题数」调整子题数量，通过「选项数」统一调整所有子题的选项数量；新增子题固定为单选子题。",
-          "英语阅读理解点击「+ 」子题按钮后，按照用户选择的添加的位置，直接新增单选子题；其他题型先打开题型菜单，用户选择题型后，在用户选择的位置新增空子题。",
-          "新增子题按选择的题型初始化兼容结构：选择题生成默认选项结构，填空题生成默认空位结构，普通题保留题干结构。",
-          "用户切换子题题型后，子题按新题型保留兼容字段并清空不兼容结构；选择题展示选项结构，填空题展示空位结构，普通非结构题只保留题干。",
-          "支持删除子题；子题完全无内容的时候，可直接删除；若子题的题干、答案、解析、选项任意一项有内容，点击的时候都显示弹窗提示——确认删除当前子题吗？取消，确认"
-        ]
-      }
-    ]
-  },
   "TABLET_REVIEW_QA_IMAGE-001": {
     "displayNumber": 1,
     "markerOffset": {
@@ -1772,7 +1630,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "display.description",
         "title": "关联入口",
         "items": [
-          "答案模块左上角展示【答】手动关联图标。",
+          "【9.8需求评审后补充】\n在题目+答案——图片模式下，答案icon的上方，需要显示设置选项数的操作能力，选项数量，还是基于对题目信息的识别，显示的数量，用户可以设置的下限是2，设置的上限是26\n\n答案模块左上角展示【答】手动关联图标。",
           "答案缺失时图标显示待补充提示状态；进入答案关联状态后图标高亮；识别中图标显示不可操作的状态。"
         ]
       },
@@ -1781,7 +1639,7 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "title": "手动关联",
         "items": [
           "用户点击【答】关联图标后，当前题卡进入答案关联状态；再次点击同一图标退出关联状态。",
-          "答案关联状态下，左侧资料的原选框全部隐藏，用户可在左侧资料中框选答案内容，确认框选内容后，点击「精准识别」，识别结果写入当前父题或子题答案，同时左侧资料原本的选框再次显示，答案选项或内容区域，显示加载中的提示文案——答案识别中...",
+          "答案关联状态下，左侧资料的原选框全部隐藏，用户可在左侧资料中框选答案内容，确认框选内容后，点击「精准识别」，识别结果写入当前父题或子题答案，同时左侧资料原本的选框再次显示，答案选项或内容区域，显示加载中的提示文案——答案识别中...\n\n【9.8需求评审后补充】\n如果用户框选了不带选项的内容，经过识别后，则显示异常提示——未识别到答案选项",
           "跨文件模式下，点击答案关联入口后,，无需自动定位到答案文件位置；"
         ]
       }
@@ -1902,8 +1760,8 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.description",
         "title": "空位维护",
         "items": [
-          "用户进入编辑态后，可逐个维护填空题空位答案。",
-          "从单空增加到多空时，答案空位的生成和显示，需要和题干的空位顺序保持一致\n\n例如\n原本题干：xxxx①xxxxx②xxxx\n答案空位是：\n①xxx\n②xxx\n\n然后用户在题干上手动挖空\n新题干：xxxx①xxx②”xx③xxxx\n其中的②\",是用户新挖的空\n\n答案空位需要对应变更为：\n①xxx\n②”\n③xxx",
+          "【9.8需求评审后补充】\n填空题在【题目+答案-图片模式、仅题目-图片模式父题时的时候，也显示设置空数的操作能力，允许用户设置空数的上限为20个，大于20个之后，加号不可点，点击后显示toast提示——单题最多支持设置20个空数；下限为1个，只有1一个的时候，减号不能点击，点击的时候，显示toast提示——填空题需至少设置一个空数\n\n用户进入编辑态后，可逐个维护填空题空位答案。",
+          "从单空增加到多空时，在识别模式的时候，答案空位的生成和显示，需要和题干的空位顺序保持一致，\n\n例如\n原本题干：xxxx①xxxxx②xxxx\n答案空位是：\n①xxx\n②xxx\n\n然后用户在题干上手动挖空\n新题干：xxxx①xxx②”xx③xxxx\n其中的②\",是用户新挖的空\n\n答案空位需要对应变更为：\n①xxx\n②”\n③xxx\n\n在图片模式的时候，添加和删除空数，都是从最后一个答案空位进行增删，删除的时候，如果最后一个空位有答案，也可以直接删除",
           "从多空减少到单空时，删除的哪个空位，就把答案中对应的哪个答案空删除，然后剩余的序号自动变更"
         ]
       }
@@ -1997,8 +1855,8 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
         "id": "operation.description",
         "title": "统计规则",
         "items": [
-          "普通复合题任一子题缺答案或解析时，当前题目计入待补缺口。",
-          "英语完形填空任一子题缺答案，当前子题目计入待补缺口。\n\n若只是父题总解析缺失时，当前大题题目计入待补缺口\n\n若同时存在子题答案缺少和父题总解析缺少时，两个类型独立计算\n\n顶部横幅和加入试卷确认弹窗使用同一缺口统计口径。"
+          "普通复合题任一子题缺答案或解析时，则当前大题题目计入待补缺口。",
+          "英语完形填空任一子题缺答案，当前大题题目计入待补缺口。\n\n若只是父题总解析缺失时，当前大题题目计入待补缺口\n\n顶部横幅和加入试卷确认弹窗使用同一缺口统计口径。"
         ]
       }
     ]
@@ -2098,6 +1956,163 @@ export const persistedRequirementReviewOverrides: Record<string, PersistedRequir
           "用户点击题卡「编辑」后，可在题干字段中补充或修改题目文字。",
           "切换识别模式和图片模式时，保留当前题干、题型、答案、解析和子题结构，不重新发起识别。",
           "用户通过【题】手动关联补充题干时，识别结果回填到当前题干区域，不覆盖答案和解析内容。\n\n需要注意的是，选择题的题干区域包括选项区域，系统自动处理的时候，要自动拆分，人工手动处理的时候，用框选了选择题的题干和选项，也需要自动拆分"
+        ]
+      }
+    ]
+  },
+  "TABLET_REVIEW_RECOGNITION-001": {
+    "displayNumber": 3,
+    "markerOffset": {
+      "x": -163,
+      "y": 49
+    }
+  },
+  "TABLET_REVIEW_RECOGNITION-002": {
+    "displayNumber": 2,
+    "markerOffset": {
+      "x": 5,
+      "y": -25
+    },
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "题干展示",
+        "items": [
+          "识别模式题干字段展示题目文字内容；换行、选项和子题标记按识别内容保留为可核对文本。",
+          "题干为空或未识别出文本时，题干区域仍保留在题卡中，并显示空输入占位「题干」。",
+          "题干字段左上角展示【题】手动关联图标，用于把左侧资料中的题干区域重新关联到当前题卡。",
+          "进入题干关联状态后，左侧资料页隐藏原有识别框，只显示用户本次框选的精准识别框。",
+          "用户拖动画框时，左侧资料页展示青绿色半透明框选区域和放大镜，帮助确认框选边界。",
+          "生成精准识别框后，页面中间展示「精准识别」按钮；识别中按钮禁用，关联图标显示处理中状态。",
+          "查看态下题干不可直接编辑；编辑态下用户可修改题干文本。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "题干维护",
+        "items": [
+          "用户点击题卡「编辑」后，可在题干字段中补充或修改题目文字。",
+          "用户点击【题】手动关联图标后，当前题卡进入题干关联状态；再次点击同一图标退出关联状态。",
+          "题干关联状态下，用户只能在左侧非答案页资料中按住并拖拽生成精准识别框；框选宽度过小或高度过小时不生成识别框。",
+          "精准识别框生成后支持拖动调整位置、拖拽右下角调整大小，也支持点击删除图标取消本次框选。",
+          "用户点击「精准识别」后，系统识别精准识别框内的内容；识别完成后清空精准识别框并退出题干关联状态。",
+          "识别结果为普通文本时，文本回填到当前题卡或当前子题的题干区域。",
+          "识别结果包含选项时，系统按选项结果更新当前题卡或当前子题的选项内容，不把选项文本硬塞进题干。",
+          "题干关联识别只作为题干内容补充，不改写答案、解析和题型结构。",
+          "题干为空的题卡允许停留在核对列表中，用户可在核对页继续补充。",
+          "仅题目模式加入试卷前只校验是否存在可加入题目和题干内容，不校验答案或解析。"
+        ]
+      }
+    ]
+  },
+  "TABLET_REVIEW_RECOGNITION-003": {
+    "displayNumber": 3,
+    "markerOffset": {
+      "x": -655,
+      "y": -23
+    },
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "选项展示",
+        "items": [
+          "题型为单选题、多选题或判断题时，识别模式在题干下方展示选项区。",
+          "单选题和多选题按识别文本中实际拆出的连续选项数展示；未拆出时再按识别结果给出的选项数量展示，仍没有数量时默认展示 4 项。",
+          "单选题和多选题的选项数量展示范围为 2 到 26 项。",
+          "判断题固定展示 2 个选项，分别对应「对」和「错」。",
+          "选项区左上角展示【选项】手动关联图标，用于用户手动把左侧资料中的选项区域重新关联到当前题卡。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "选项维护",
+        "items": [
+          "进入编辑态后，用户可手动编辑选项区域的文本内容内容。\n\n非编辑态的时候，可直接点击关联icon，进行手动关联操作，可直接对右侧的选项区域进行替换",
+          "单选题和多选题进入可调整选项数；选项数最少 2 项、最多 26 项。",
+          "减少选项数时，低于2的时候，减号置灰；增加选项数时，已有选项内容按字母保留，新增选项为空，增加到26的时候，加号置灰",
+          "判断题不按普通选择题扩展选项数，始终保留 2 个选项。",
+          "用户点击【选项】手动关联图标后，当前题卡进入选项关联状态；再次点击同一图标退出关联状态。",
+          "选项关联状态下，用户在左侧非答案页资料中框选选项区域并执行识别，识别出的选项内容按选项字母回填到当前题卡或当前子题。",
+          "选项关联识别出的选项数量多于当前选项数时，选项数自动扩展到识别出的数量，但不超过 26 项。",
+          "题型切换为非选择题后，原选择题选项结构按不兼容结构清空。"
+        ]
+      }
+    ]
+  },
+  "TABLET_REVIEW_RECOGNITION-004": {
+    "displayNumber": 4,
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "空位展示",
+        "items": [
+          "题型为填空题时，识别模式按题干文本中的空位展示填空位置。",
+          "每个空位在题干中以编号空位样式展示，编号按题干内空位顺序从 1 开始。",
+          "题干没有空位时，不因为内部识别结果自动展示额外空位；用户可进入编辑态手动增加空位。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "空位维护",
+        "items": [
+          "用户进入编辑态后，可以按当前原型已实现的方式手动增加空位。\n\n【9.8需求评审后补充】\n填空题，挖空，可以用按钮的形式，但是如果用按钮的形式，那么按钮只能在题型是填空题的时候才显示，在其他题型下，不显示，同时需要注意，如果填空题是子题，那么按钮也只能出现在子题的位置，不能直接在父题的位置",
+          "用户手动增加空位后，题干中的空位展示和空位数量同步更新。",
+          "切换为非填空题后，填空题空位结构按不兼容结构清空。"
+        ]
+      }
+    ]
+  },
+  "TABLET_REVIEW_RECOGNITION-005": {
+    "displayNumber": 5,
+    "markerOffset": {
+      "x": -640,
+      "y": 12
+    },
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "子题展示",
+        "items": [
+          "题型为复合题时，识别模式在父题题干下方展示子题区。",
+          "每个子题展示子题序号、子题题型、子题题干；仅题目模式下不展示子题答案和解析。",
+          "英语完形填空的子题题型固定显示为「单选」，不展示可切换的子题题型下拉。\n\n英语的阅读理解题，子题无需特殊处理，子题题型可由用户自主切换",
+          "英语完形填空在子题区只展示「子题数」「题型：单选」「选项数」三个结构维护入口，不展示「+ 」子题按钮和子题题型菜单。",
+          "其他可添加子题的题型展示子题题型选择器，选项按当前学科可用题型展示，题型名称去掉末尾「题」字。",
+          "自动拆分失败时仍展示 1 个空子题，提示用户在编辑态继续补充子题内容。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "子题维护",
+        "items": [
+          "进入编辑态后，用户可修改子题题型和子题题干。",
+          "英语完形填空可通过「子题数」调整子题数量，通过「选项数」统一调整所有子题的选项数量；新增子题固定为单选子题。\n\n通过子题数增删题量的时候，都是默认从最后一个子题开始增删\n\n也支持通过子题右侧点击增加子题的按钮进行指定位置的添加子题操作",
+          "英语阅读理解点击「+ 」子题按钮后，按照用户选择的添加的位置，直接新增单选子题；其他题型先打开题型菜单，用户选择题型后，在用户选择的位置新增空子题。",
+          "新增子题按选择的题型初始化兼容结构：选择题生成默认选项结构，填空题生成默认空位结构，普通题保留题干结构。",
+          "用户切换子题题型后，子题按新题型保留兼容字段并清空不兼容结构；选择题展示选项结构，填空题展示空位结构，普通非结构题只保留题干。",
+          "支持删除子题；子题完全无内容的时候，可直接删除；若子题的题干、答案、解析、选项任意一项有内容，点击的时候都显示弹窗提示——确认删除当前子题吗？取消，确认"
+        ]
+      }
+    ]
+  },
+  "TABLET_REVIEW_RECOGNITION-006": {
+    "displayNumber": 1,
+    "sections": [
+      {
+        "id": "display.description",
+        "title": "结构联动",
+        "items": [
+          "切换为选择题时展示选项区；\n切换为填空题时展示填空题题干与空位；\n切换为复合题时展示子题区；\n切换为普通非结构题时只展示题干。"
+        ]
+      },
+      {
+        "id": "operation.description",
+        "title": "切换结果",
+        "items": [
+          "题型切换只保留可兼容字段。",
+          "切换为非选择题时，原选择题选项结构清空。",
+          "复合题切换为普通题时，原子题结构清空。",
+          "切换为填空题时，按题干中的空位维护填空题结构。"
         ]
       }
     ]
